@@ -7,3 +7,6 @@ app/*.iml
 *.iml
 local.properties
 libretrodroid/.cxx
+
+# Libretro cores fetched from the RetroArch buildbot for the spike app (see .local/HANDOFF.md)
+app/src/main/jniLibs/arm64-v8a/*_libretro_android.so
