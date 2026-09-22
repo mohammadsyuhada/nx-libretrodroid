@@ -6,13 +6,13 @@ group='com.github.Swordfish90'
 
 android {
     namespace = "com.swordfish.libretrodroid"
-    compileSdkVersion 33
+    compileSdkVersion 35
     buildToolsVersion "34.0.0"
 
 
     defaultConfig {
         minSdkVersion 21
-        targetSdkVersion 31
+        targetSdkVersion 35
         versionCode 1
         versionName "1.0"
 
