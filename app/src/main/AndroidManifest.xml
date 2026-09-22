@@ -18,11 +18,24 @@
         android:theme="@style/Theme.AppCompat.NoActionBar"
         android:launchMode="singleTask"
         android:exported="true"
+        android:configChanges="orientation|screenSize|keyboardHidden" />
+
+    <activity
+        android:name="com.swordfish.libretrodroid.spike.SpikeLauncherActivity"
+        android:theme="@style/Theme.AppCompat.NoActionBar"
+        android:exported="true"
         android:configChanges="orientation|screenSize|keyboardHidden">
       <intent-filter>
         <action android:name="android.intent.action.MAIN" />
         <category android:name="android.intent.category.LAUNCHER" />
       </intent-filter>
     </activity>
+
+    <activity
+        android:name="com.swordfish.libretrodroid.spike.SpikeGameActivity"
+        android:theme="@style/Theme.AppCompat.NoActionBar"
+        android:exported="false"
+        android:screenOrientation="sensorLandscape"
+        android:configChanges="orientation|screenSize|keyboardHidden" />
   </application>
 </manifest>
