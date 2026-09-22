@@ -32,3 +32,9 @@ const std::string &libretrodroid::VFSFile::getFileName() const {
 int libretrodroid::VFSFile::getFD() const {
     return fd->getFD();
 }
+
+void libretrodroid::VFSFile::releaseFD() {
+    if (fd) {
+        fd->release();
+    }
+}

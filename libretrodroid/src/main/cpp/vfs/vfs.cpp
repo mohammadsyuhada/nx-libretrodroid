@@ -138,7 +138,11 @@ struct retro_vfs_file_handle* VFS::virtualOpen(const char *path, unsigned int mo
 
     LOGV("VFS Virtual file size: %i", size);
 
-    stream->fd = duplicateFD;
+    // fdopen transfers ownership of duplicateFD to the FILE* below, and buffered
+    // I/O goes through stream->fp. Leave stream->fd at 0 so retro_vfs_file_close_impl
+    // closes the fd once via fclose(stream->fp) and skips its raw close(stream->fd),
+    // which would otherwise close an fd owned by the FILE* (fatal under fdsan).
+    stream->fd = 0;
     stream->hints = hints;
     stream->size = size;
     stream->buf = nullptr;

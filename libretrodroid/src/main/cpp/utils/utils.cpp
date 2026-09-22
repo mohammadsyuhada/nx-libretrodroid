@@ -17,6 +17,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <stdexcept>
 #include <unistd.h>
 
 #include "utils.h"
@@ -38,11 +39,24 @@ Utils::ReadResult Utils::readFileAsBytes(const std::string &filePath) {
 
 Utils::ReadResult Utils::readFileAsBytes(const int fileDescriptor) {
     FILE* file = fdopen(fileDescriptor, "r");
+    if (file == nullptr) {
+        LOGE("Cannot open file descriptor %d for reading.", fileDescriptor);
+        throw std::runtime_error("Cannot open file descriptor for reading.");
+    }
+
     size_t size = getFileSize(file);
 
     char* bytes = new char[size];
-    fread(bytes, sizeof(char), size, file);
-    close(fileDescriptor);
+    size_t bytesRead = fread(bytes, sizeof(char), size, file);
+    if (bytesRead != size) {
+        LOGW("Short read on file descriptor %d: expected %zu bytes but got %zu.",
+             fileDescriptor, size, bytesRead);
+    }
+
+    // fdopen transfers ownership of the fd to the FILE*, so close it via fclose.
+    // Calling close(fileDescriptor) here would close an fd owned by the FILE*,
+    // which fdsan treats as fatal.
+    fclose(file);
     return ReadResult { size, bytes };
 }
 

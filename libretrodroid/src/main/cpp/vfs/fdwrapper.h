@@ -32,6 +32,10 @@ public:
 
     int getFD();
 
+    // Relinquish ownership of the fd so the destructor won't close it. Used when
+    // the fd has already been closed by another owner (e.g. an fdopen'd FILE*).
+    void release() { fd = -1; }
+
     FDWrapper(int fd) : fd(fd) { }
     ~FDWrapper();
 

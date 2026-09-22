@@ -393,6 +393,9 @@ void LibretroDroid::loadGameFromVirtualFiles(std::vector<VFSFile> virtualFiles) 
         struct Utils::ReadResult file = Utils::readFileAsBytes(firstFileFD);
         game_info.data = file.data;
         game_info.size = file.size;
+        // readFileAsBytes already closed the fd via fclose. Release it here so the
+        // VFSFile destructor doesn't close the same fd a second time.
+        virtualFiles[0].releaseFD();
     }
 
     bool result = core->retro_load_game(&game_info);
