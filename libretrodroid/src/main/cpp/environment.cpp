@@ -138,6 +138,14 @@ std::string categoryLabel(const struct retro_core_option_v2_category* categories
     return std::string();
 }
 
+std::string categoryInfo(const struct retro_core_option_v2_category* categories, const std::string& key) {
+    if (categories == nullptr || key.empty()) return std::string();
+    for (int i = 0; categories[i].key != nullptr; i++) {
+        if (key == categories[i].key) return safeString(categories[i].info);
+    }
+    return std::string();
+}
+
 struct Variable optionFromV1(
     const struct retro_core_option_definition& definition,
     const struct retro_core_option_definition* local
@@ -176,6 +184,12 @@ struct Variable optionFromV2(
     }
     if (option.categoryLabel.empty()) {
         option.categoryLabel = categoryLabel(options.categories, option.category);
+    }
+    if (localOptions != nullptr) {
+        option.categoryInfo = categoryInfo(localOptions->categories, option.category);
+    }
+    if (option.categoryInfo.empty()) {
+        option.categoryInfo = categoryInfo(options.categories, option.category);
     }
     fillValues(option, definition.values);
     if (local != nullptr) localizeValues(option, local->values);

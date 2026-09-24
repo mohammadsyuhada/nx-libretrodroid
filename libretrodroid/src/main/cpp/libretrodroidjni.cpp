@@ -129,6 +129,7 @@ JNIEXPORT jobjectArray JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_ge
     jfieldID jInfoField = env->GetFieldID(variableClass, "info", "Ljava/lang/String;");
     jfieldID jCategoryField = env->GetFieldID(variableClass, "category", "Ljava/lang/String;");
     jfieldID jCategoryLabelField = env->GetFieldID(variableClass, "categoryLabel", "Ljava/lang/String;");
+    jfieldID jCategoryInfoField = env->GetFieldID(variableClass, "categoryInfo", "Ljava/lang/String;");
     jfieldID jValuesField = env->GetFieldID(variableClass, "values", "[Ljava/lang/String;");
     jfieldID jValueLabelsField = env->GetFieldID(variableClass, "valueLabels", "[Ljava/lang/String;");
     jfieldID jDefaultValueField = env->GetFieldID(variableClass, "defaultValue", "Ljava/lang/String;");
@@ -152,6 +153,7 @@ JNIEXPORT jobjectArray JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_ge
             setStringField(env, jVariable, jInfoField, variable.info);
             setStringField(env, jVariable, jCategoryField, variable.category);
             setStringField(env, jVariable, jCategoryLabelField, variable.categoryLabel);
+            setStringField(env, jVariable, jCategoryInfoField, variable.categoryInfo);
             setStringField(env, jVariable, jDefaultValueField, variable.defaultValue);
 
             jobjectArray jValues = toJavaStringArray(env, variable.values);

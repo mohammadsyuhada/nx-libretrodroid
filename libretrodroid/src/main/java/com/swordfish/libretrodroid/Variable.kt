@@ -14,6 +14,7 @@ data class Variable(
     val info: String? = null,
     val category: String? = null,
     val categoryLabel: String? = null,
+    val categoryInfo: String? = null,
     val values: Array<String>? = null,
     val valueLabels: Array<String>? = null,
     val defaultValue: String? = null,

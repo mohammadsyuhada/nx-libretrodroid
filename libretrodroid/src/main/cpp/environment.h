@@ -172,6 +172,7 @@ public:
     std::string info;
     std::string category;
     std::string categoryLabel;
+    std::string categoryInfo;
     std::vector<std::string> values;
     std::vector<std::string> valueLabels;
     std::string defaultValue;
