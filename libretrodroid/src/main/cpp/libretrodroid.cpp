@@ -462,6 +462,9 @@ void LibretroDroid::step() {
 
     LOGD("Stepping into retro_run()");
 
+    // Read once: the UI thread can change it mid-step, and the run loop and the paused redraw must agree.
+    unsigned int speed = frameSpeed;
+
     unsigned frames = 1;
     if (fpsSync) {
         unsigned requestedFrames = fpsSync->advanceFrames();
@@ -470,11 +473,11 @@ void LibretroDroid::step() {
         frames = std::min(requestedFrames, 2u);
     }
 
-    for (size_t i = 0; i < frames * frameSpeed; i++)
+    for (size_t i = 0; i < frames * speed; i++)
         core->retro_run();
 
     if (video) {
-        if (frameSpeed == 0) {
+        if (speed == 0) {
             // Paused: the core doesn't run, so redraw its last frame with the current shader and layout.
             // GL cores otherwise draw only inside their video callback, leaving the paused picture stale.
             video->renderPausedFrame();
