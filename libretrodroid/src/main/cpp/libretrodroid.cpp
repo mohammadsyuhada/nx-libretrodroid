@@ -559,6 +559,11 @@ void LibretroDroid::setPresetChain(std::optional<PresetChain> chain) {
     // Drop a stale error from an earlier build so it isn't reported against this chain.
     video->takePresetError();
     video->setPresetChain(presetChain);
+
+    // GLSurfaceView runs queued events while paused with no context current; every GL call would no-op and the
+    // build would fail with a bogus compile error. Leave it to the next renderFrame, whose error takePresetError reads.
+    if (eglGetCurrentContext() == EGL_NO_CONTEXT) return;
+
     video->updatePresetRenderer();
     presetError = video->takePresetError();
     if (presetError) {

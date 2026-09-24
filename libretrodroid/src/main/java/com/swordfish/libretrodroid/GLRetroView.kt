@@ -88,10 +88,23 @@ class GLRetroView(
     }
 
     /** A RetroArch GLSL chain drawn instead of [shader]; null = the built-in [shader]. Queued on the GL thread; survives create(). */
-    var shaderChain: ShaderChainData? by Delegates.observable(null) { _, _, value -> queueEvent { pushShaderChain(value) } }
+    var shaderChain: ShaderChainData? by Delegates.observable(null) { _, _, value ->
+        shaderParameterOverrides.clear()
+        queueEvent { pushShaderChain(value) }
+    }
 
-    /** Updates one preset parameter without recompiling. */
-    fun setShaderParameter(id: String, value: Float) = queueEvent { LibretroDroid.setShaderParameter(id, value) }
+    /** Updates one preset parameter without recompiling. Kept until [shaderChain] is next assigned. */
+    fun setShaderParameter(id: String, value: Float) {
+        shaderParameterOverrides[id] = value
+        queueEvent { LibretroDroid.setShaderParameter(id, value) }
+    }
+
+    // Main thread only. Merged into the chain when reapplyDisplaySettings re-pushes it, so tweaks survive create().
+    private val shaderParameterOverrides = mutableMapOf<String, Float>()
+
+    // GL thread only. A chain queued while no context was current builds with the next drawn frame; its error is
+    // polled once after the first frame of each surface and after each push.
+    private var shaderErrorPolled = false
 
     /** Called on the main thread with "pass N: <log>" when a chain fails to build; the view then draws [shader]. */
     var onShaderError: ((String) -> Unit)? = null
@@ -153,7 +166,7 @@ class GLRetroView(
         val mode = scaleMode.value
         val offsetX = screenOffset.x
         val offsetY = screenOffset.y
-        val chain = shaderChain
+        val chain = shaderChain?.let { it.copy(params = it.params + shaderParameterOverrides) }
         queueEvent {
             LibretroDroid.setViewport(left, top, width, height)
             LibretroDroid.setScaleMode(mode)
@@ -193,6 +206,12 @@ class GLRetroView(
                 params.map { it.value }.toFloatArray(),
             )
         }
+        reportShaderError()
+        // Built later if no context was current (paused); resuming may not recreate the surface, so poll again.
+        shaderErrorPolled = false
+    }
+
+    private fun reportShaderError() {
         LibretroDroid.takeShaderError()?.let { message -> post { onShaderError?.invoke(message) } }
     }
 
@@ -412,6 +431,10 @@ class GLRetroView(
                 lifecycle?.coroutineScope?.launch {
                     retroGLEventsSubject.emit(GLRetroEvents.FrameRendered)
                 }
+                if (!shaderErrorPolled) {
+                    shaderErrorPolled = true
+                    reportShaderError()
+                }
             }
         }
 
@@ -423,6 +446,7 @@ class GLRetroView(
 
         override fun onSurfaceCreated(gl: GL10, config: EGLConfig) = catchExceptions {
             Thread.currentThread().priority = Thread.MAX_PRIORITY
+            shaderErrorPolled = false
             initializeCore()
             lifecycle?.coroutineScope?.launch {
                 retroGLEventsSubject.emit(GLRetroEvents.SurfaceCreated)
