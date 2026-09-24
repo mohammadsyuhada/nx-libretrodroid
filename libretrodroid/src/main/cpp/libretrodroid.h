@@ -67,6 +67,7 @@ public:
     void setCheat(unsigned index, bool enabled, const std::string& code);
     void resetCheat();
 
+    // serializeState/serializeSRAM return a new[] buffer the caller must delete[].
     std::pair<int8_t*, size_t> serializeState();
     bool unserializeState(int8_t *data, size_t size);
 
