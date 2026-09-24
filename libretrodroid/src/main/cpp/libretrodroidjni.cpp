@@ -19,6 +19,8 @@
 
 #include <EGL/egl.h>
 
+#include <algorithm>
+#include <initializer_list>
 #include <memory>
 #include <string>
 #include <vector>
@@ -50,6 +52,48 @@ extern "C" {
 #include "utils/utils.h"
 #include "../../libretro-common/include/libretro.h"
 #include "utils/libretrodroidexception.h"
+}
+
+namespace {
+
+// Null arrays read as empty so a length guard catches them.
+jsize presetArrayLength(JNIEnv* env, jarray array) {
+    return array == nullptr ? 0 : env->GetArrayLength(array);
+}
+
+std::vector<std::string> presetStrings(JNIEnv* env, jobjectArray array) {
+    std::vector<std::string> result;
+    jsize length = presetArrayLength(env, array);
+    for (jsize i = 0; i < length; i++) {
+        auto value = (jstring) env->GetObjectArrayElement(array, i);
+        if (value == nullptr) {
+            result.emplace_back();
+            continue;
+        }
+        result.push_back(JniString(env, value).stdString());
+        env->DeleteLocalRef(value);
+    }
+    return result;
+}
+
+std::vector<jint> presetInts(JNIEnv* env, jintArray array) {
+    std::vector<jint> result(presetArrayLength(env, array));
+    if (!result.empty()) env->GetIntArrayRegion(array, 0, (jsize) result.size(), result.data());
+    return result;
+}
+
+std::vector<jfloat> presetFloats(JNIEnv* env, jfloatArray array) {
+    std::vector<jfloat> result(presetArrayLength(env, array));
+    if (!result.empty()) env->GetFloatArrayRegion(array, 0, (jsize) result.size(), result.data());
+    return result;
+}
+
+std::vector<jboolean> presetBooleans(JNIEnv* env, jbooleanArray array) {
+    std::vector<jboolean> result(presetArrayLength(env, array));
+    if (!result.empty()) env->GetBooleanArrayRegion(array, 0, (jsize) result.size(), result.data());
+    return result;
+}
+
 }
 
 extern "C" {
@@ -677,6 +721,142 @@ JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_setScreenO
     jfloat y
 ) {
     LibretroDroid::getInstance().setScreenOffset(x, y);
+}
+
+JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_setShaderChain(
+    JNIEnv* env,
+    jclass obj,
+    jobjectArray sources,
+    jintArray filterLinear,
+    jintArray wrap,
+    jintArray scaleTypeX,
+    jintArray scaleTypeY,
+    jfloatArray scaleX,
+    jfloatArray scaleY,
+    jintArray frameCountMod,
+    jobjectArray alias,
+    jobjectArray lutIds,
+    jintArray lutWidth,
+    jintArray lutHeight,
+    jobjectArray lutRgba,
+    jbooleanArray lutLinear,
+    jintArray lutWrap,
+    jobjectArray paramIds,
+    jfloatArray paramValues
+) {
+    try {
+        jsize passCount = presetArrayLength(env, sources);
+        for (jarray array : std::initializer_list<jarray> {
+            filterLinear, wrap, scaleTypeX, scaleTypeY, scaleX, scaleY, frameCountMod, alias
+        }) {
+            if (presetArrayLength(env, array) != passCount) {
+                LOGE("setShaderChain: pass arrays differ in length");
+                return;
+            }
+        }
+        jsize lutCount = presetArrayLength(env, lutIds);
+        for (jarray array : std::initializer_list<jarray> { lutWidth, lutHeight, lutRgba, lutLinear, lutWrap }) {
+            if (presetArrayLength(env, array) != lutCount) {
+                LOGE("setShaderChain: lut arrays differ in length");
+                return;
+            }
+        }
+        if (presetArrayLength(env, paramValues) != presetArrayLength(env, paramIds)) {
+            LOGE("setShaderChain: param arrays differ in length");
+            return;
+        }
+
+        auto sourceValues = presetStrings(env, sources);
+        auto filterValues = presetInts(env, filterLinear);
+        auto wrapValues = presetInts(env, wrap);
+        auto scaleTypeXValues = presetInts(env, scaleTypeX);
+        auto scaleTypeYValues = presetInts(env, scaleTypeY);
+        auto scaleXValues = presetFloats(env, scaleX);
+        auto scaleYValues = presetFloats(env, scaleY);
+        auto frameCountModValues = presetInts(env, frameCountMod);
+        auto aliasValues = presetStrings(env, alias);
+
+        PresetChain chain;
+        for (jsize i = 0; i < passCount; i++) {
+            PresetPass pass;
+            pass.source = sourceValues[i];
+            pass.filterLinear = filterValues[i] < 0 ? std::nullopt : std::optional<bool>(filterValues[i] != 0);
+            pass.wrap = wrapValues[i];
+            pass.scaleTypeX = scaleTypeXValues[i];
+            pass.scaleTypeY = scaleTypeYValues[i];
+            pass.scaleX = scaleXValues[i];
+            pass.scaleY = scaleYValues[i];
+            pass.frameCountMod = (unsigned) std::max(0, (int) frameCountModValues[i]);
+            pass.alias = aliasValues[i];
+            chain.passes.push_back(std::move(pass));
+        }
+
+        auto lutIdValues = presetStrings(env, lutIds);
+        auto lutWidthValues = presetInts(env, lutWidth);
+        auto lutHeightValues = presetInts(env, lutHeight);
+        auto lutLinearValues = presetBooleans(env, lutLinear);
+        auto lutWrapValues = presetInts(env, lutWrap);
+
+        for (jsize i = 0; i < lutCount; i++) {
+            auto rgba = (jbyteArray) env->GetObjectArrayElement(lutRgba, i);
+            jsize rgbaLength = presetArrayLength(env, rgba);
+            int width = lutWidthValues[i];
+            int height = lutHeightValues[i];
+            if (width <= 0 || height <= 0 || (int64_t) rgbaLength != (int64_t) width * height * 4) {
+                LOGE("setShaderChain: lut %s has %d bytes for %dx%d", lutIdValues[i].c_str(), rgbaLength, width, height);
+                if (rgba != nullptr) env->DeleteLocalRef(rgba);
+                return;
+            }
+
+            PresetLut lut;
+            lut.id = lutIdValues[i];
+            lut.width = (unsigned) width;
+            lut.height = (unsigned) height;
+            lut.rgba.resize(rgbaLength);
+            env->GetByteArrayRegion(rgba, 0, rgbaLength, reinterpret_cast<jbyte*>(lut.rgba.data()));
+            env->DeleteLocalRef(rgba);
+            lut.linear = lutLinearValues[i] == JNI_TRUE;
+            lut.wrap = lutWrapValues[i];
+            chain.luts.push_back(std::move(lut));
+        }
+
+        auto paramIdValues = presetStrings(env, paramIds);
+        auto paramFloatValues = presetFloats(env, paramValues);
+        for (size_t i = 0; i < paramIdValues.size(); i++) {
+            chain.params[paramIdValues[i]] = paramFloatValues[i];
+        }
+
+        LibretroDroid::getInstance().setPresetChain(std::move(chain));
+    } catch (std::exception &exception) {
+        LOGE("Error in setShaderChain: %s", exception.what());
+        JavaUtils::throwRetroException(env, ERROR_GENERIC);
+    }
+}
+
+JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_clearShaderChain(
+    JNIEnv* env,
+    jclass obj
+) {
+    LibretroDroid::getInstance().setPresetChain(std::nullopt);
+}
+
+JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_setShaderParameter(
+    JNIEnv* env,
+    jclass obj,
+    jstring id,
+    jfloat value
+) {
+    if (id == nullptr) return;
+    JniString idString(env, id);
+    LibretroDroid::getInstance().setPresetParameter(idString.stdString(), value);
+}
+
+JNIEXPORT jstring JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_takeShaderError(
+    JNIEnv* env,
+    jclass obj
+) {
+    auto error = LibretroDroid::getInstance().takePresetError();
+    return error ? env->NewStringUTF(error->c_str()) : nullptr;
 }
 
 JNIEXPORT jfloatArray JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_getGameGeometry(

@@ -87,6 +87,15 @@ class GLRetroView(
         queueEvent { LibretroDroid.setScreenOffset(x, y) }
     }
 
+    /** A RetroArch GLSL chain drawn instead of [shader]; null = the built-in [shader]. Queued on the GL thread; survives create(). */
+    var shaderChain: ShaderChainData? by Delegates.observable(null) { _, _, value -> queueEvent { pushShaderChain(value) } }
+
+    /** Updates one preset parameter without recompiling. */
+    fun setShaderParameter(id: String, value: Float) = queueEvent { LibretroDroid.setShaderParameter(id, value) }
+
+    /** Called on the main thread with "pass N: <log>" when a chain fails to build; the view then draws [shader]. */
+    var onShaderError: ((String) -> Unit)? = null
+
     private val openGLESVersion: Int
 
     private var isGameLoaded = false
@@ -144,11 +153,47 @@ class GLRetroView(
         val mode = scaleMode.value
         val offsetX = screenOffset.x
         val offsetY = screenOffset.y
+        val chain = shaderChain
         queueEvent {
             LibretroDroid.setViewport(left, top, width, height)
             LibretroDroid.setScaleMode(mode)
             LibretroDroid.setScreenOffset(offsetX, offsetY)
+            pushShaderChain(chain)
         }
+    }
+
+    /**
+     * Runs on the GL thread. With a Video the chain builds synchronously, so a failure is read back right away and
+     * reported on the main thread; before the Video exists it is remembered and built (errors only logged) with it.
+     */
+    private fun pushShaderChain(chain: ShaderChainData?) = catchExceptions {
+        if (chain == null) {
+            LibretroDroid.clearShaderChain()
+        } else {
+            val passes = chain.passes
+            val luts = chain.luts
+            val params = chain.params.entries.toList()
+            LibretroDroid.setShaderChain(
+                passes.map { it.source }.toTypedArray(),
+                passes.map { pass -> pass.filterLinear?.let { if (it) 1 else 0 } ?: -1 }.toIntArray(),
+                passes.map { it.wrap.value }.toIntArray(),
+                passes.map { it.scaleTypeX.value }.toIntArray(),
+                passes.map { it.scaleTypeY.value }.toIntArray(),
+                passes.map { it.scaleX }.toFloatArray(),
+                passes.map { it.scaleY }.toFloatArray(),
+                passes.map { it.frameCountMod }.toIntArray(),
+                passes.map { it.alias }.toTypedArray(),
+                luts.map { it.id }.toTypedArray(),
+                luts.map { it.width }.toIntArray(),
+                luts.map { it.height }.toIntArray(),
+                luts.map { it.rgba }.toTypedArray(),
+                luts.map { it.linear }.toBooleanArray(),
+                luts.map { it.wrap.value }.toIntArray(),
+                params.map { it.key }.toTypedArray(),
+                params.map { it.value }.toFloatArray(),
+            )
+        }
+        LibretroDroid.takeShaderError()?.let { message -> post { onShaderError?.invoke(message) } }
     }
 
     @OnLifecycleEvent(Lifecycle.Event.ON_DESTROY)

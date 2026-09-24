@@ -221,6 +221,7 @@ void LibretroDroid::onSurfaceCreated() {
     video->updateContentSize(system_av_info.geometry.base_width, system_av_info.geometry.base_height);
     video->updateScaleMode(scaleMode);
     video->updateScreenOffset(screenOffsetX, screenOffsetY);
+    video->setPresetChain(presetChain);
     geometryWidth = (float) system_av_info.geometry.base_width;
     geometryHeight = (float) system_av_info.geometry.base_height;
 
@@ -548,6 +549,34 @@ void LibretroDroid::setShaderConfig(ShaderManager::Config shaderConfig) {
     if (video) {
         video->updateShaderType(fragmentShaderConfig);
     }
+}
+
+void LibretroDroid::setPresetChain(std::optional<PresetChain> chain) {
+    presetChain = std::move(chain);
+    presetError.reset();
+    if (!video) return;
+
+    // Drop a stale error from an earlier build so it isn't reported against this chain.
+    video->takePresetError();
+    video->setPresetChain(presetChain);
+    video->updatePresetRenderer();
+    presetError = video->takePresetError();
+    if (presetError) {
+        // Video already fell back to the built-in shader; don't retry the broken chain on the next Video.
+        presetChain.reset();
+    }
+}
+
+void LibretroDroid::setPresetParameter(const std::string& id, float value) {
+    if (presetChain) presetChain->params[id] = value;
+    if (video) video->setPresetParameter(id, value);
+}
+
+std::optional<std::string> LibretroDroid::takePresetError() {
+    auto error = presetError;
+    presetError.reset();
+    if (!error && video) error = video->takePresetError();
+    return error;
 }
 
 void LibretroDroid::handleVideoRefresh(

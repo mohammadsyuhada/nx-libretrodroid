@@ -135,6 +135,13 @@ public:
 
     void setShaderConfig(ShaderManager::Config shaderConfig);
 
+    // GL thread only. Remembered so a re-created Video draws the same chain; with a Video the chain builds now,
+    // so takePresetError can be read right after. A chain that fails to build is forgotten.
+    void setPresetChain(std::optional<PresetChain> chain);
+    void setPresetParameter(const std::string& id, float value);
+    // The last chain build error, cleared on read. GL thread only.
+    std::optional<std::string> takePresetError();
+
     void setViewportAlignment(unsigned int viewportAlignment);
 
     void setScaleMode(unsigned int scaleMode);
@@ -174,6 +181,9 @@ private:
     ShaderManager::Config fragmentShaderConfig = ShaderManager::Config {
         ShaderManager::Type::SHADER_DEFAULT, { }
     };
+
+    std::optional<PresetChain> presetChain;
+    std::optional<std::string> presetError;
 
     Rect viewportRect = Rect(0.0F, 0.0F, 1.0F, 1.0F);
     unsigned int viewportAlignment = V_ALIGN_CENTER;

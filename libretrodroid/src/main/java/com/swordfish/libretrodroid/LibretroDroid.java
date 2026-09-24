@@ -125,6 +125,16 @@ public class LibretroDroid {
     public static native void setScreenOffset(float x, float y);
     public static native float[] getGameGeometry();
 
+    public static native void setShaderChain(
+        String[] sources, int[] filterLinear /* -1 unspecified, 0, 1 */, int[] wrap, int[] scaleTypeX, int[] scaleTypeY,
+        float[] scaleX, float[] scaleY, int[] frameCountMod, String[] alias,
+        String[] lutIds, int[] lutWidth, int[] lutHeight, byte[][] lutRgba, boolean[] lutLinear, int[] lutWrap,
+        String[] paramIds, float[] paramValues);
+    public static native void clearShaderChain();
+    public static native void setShaderParameter(String id, float value);
+    /** Null when no chain build failed since the last call. */
+    public static native String takeShaderError();
+
     public static native byte[] serializeState();
     public static native boolean unserializeState(byte[] state);
 
