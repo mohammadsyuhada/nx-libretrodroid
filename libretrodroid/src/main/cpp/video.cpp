@@ -247,6 +247,19 @@ void Video::updateViewportAlignment(unsigned int viewportAlignment) {
 void Video::updateRendererSize(unsigned int width, unsigned int height) {
     LOGD("Updating renderer size: %d x %d", width, height);
     renderer->updateRenderedResolution(width, height);
+    videoLayout.updateContentSize(width, height);
+}
+
+void Video::updateScaleMode(unsigned int scaleMode) {
+    videoLayout.updateScaleMode(scaleMode);
+}
+
+void Video::updateScreenOffset(float x, float y) {
+    videoLayout.updateScreenOffset(x, y);
+}
+
+void Video::updateContentSize(unsigned width, unsigned height) {
+    videoLayout.updateContentSize(width, height);
 }
 
 void Video::updateRotation(float rotation) {

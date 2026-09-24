@@ -28,6 +28,8 @@
 #include <mutex>
 #include <memory>
 #include <optional>
+#include <array>
+#include <atomic>
 
 #include "log.h"
 #include "core.h"
@@ -135,6 +137,13 @@ public:
 
     void setViewportAlignment(unsigned int viewportAlignment);
 
+    void setScaleMode(unsigned int scaleMode);
+
+    void setScreenOffset(float x, float y);
+
+    // Base width, base height and aspect ratio of the running game; zeros before it loads. Any thread.
+    std::array<float, 3> getGameGeometry() const;
+
     void resetGlobalVariables();
 
     // Handle callbacks
@@ -168,6 +177,16 @@ private:
 
     Rect viewportRect = Rect(0.0F, 0.0F, 1.0F, 1.0F);
     unsigned int viewportAlignment = V_ALIGN_CENTER;
+
+    // Remembered so values set before the Video exists apply once it is created.
+    unsigned int scaleMode = SCALE_MODE_FIT;
+    float screenOffsetX = 0.0F;
+    float screenOffsetY = 0.0F;
+
+    std::atomic<float> geometryWidth { 0.0F };
+    std::atomic<float> geometryHeight { 0.0F };
+    std::atomic<float> geometryAspect { 0.0F };
+
     float screenRefreshRate = 60.0;
     int openglESVersion = 2;
     bool skipDuplicateFrames = false;

@@ -38,6 +38,10 @@ public class LibretroDroid {
     public static final int SHADER_UPSCALE_CUT2 = 5;
     public static final int SHADER_UPSCALE_CUT3 = 6;
 
+    public static final int SCALE_MODE_FIT = 0;
+    public static final int SCALE_MODE_INTEGER = 1;
+    public static final int SCALE_MODE_STRETCH = 2;
+
     public static final String SHADER_UPSCALE_CUT_PARAM_USE_DYNAMIC_BLEND = "USE_DYNAMIC_BLEND";
     public static final String SHADER_UPSCALE_CUT_PARAM_BLEND_MIN_CONTRAST_EDGE = "BLEND_MIN_CONTRAST_EDGE";
     public static final String SHADER_UPSCALE_CUT_PARAM_BLEND_MAX_CONTRAST_EDGE = "BLEND_MAX_CONTRAST_EDGE";
@@ -115,6 +119,9 @@ public class LibretroDroid {
     public static native void setShaderConfig(GLRetroShader shader);
     public static native void setViewport(float x, float y, float width, float height);
     public static native void setViewportAlignment(int viewportAlignment);
+    public static native void setScaleMode(int scaleMode);
+    public static native void setScreenOffset(float x, float y);
+    public static native float[] getGameGeometry();
 
     public static native byte[] serializeState();
     public static native boolean unserializeState(byte[] state);

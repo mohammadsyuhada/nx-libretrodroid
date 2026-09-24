@@ -42,3 +42,10 @@ enum class ViewportAlignment(val value: Int) {
     TOP(1),
     BOTTOM(2)
 }
+
+/** How the picture fills the viewport: FIT keeps the core aspect, INTEGER uses whole multiples of the base size, STRETCH fills it. */
+enum class ScaleMode(val value: Int) {
+    FIT(LibretroDroid.SCALE_MODE_FIT),
+    INTEGER(LibretroDroid.SCALE_MODE_INTEGER),
+    STRETCH(LibretroDroid.SCALE_MODE_STRETCH),
+}

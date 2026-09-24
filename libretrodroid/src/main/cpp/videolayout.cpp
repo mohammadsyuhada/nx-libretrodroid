@@ -18,6 +18,10 @@
 #include "videolayout.h"
 #include "log.h"
 
+#include <algorithm>
+#include <cmath>
+#include <limits>
+
 namespace libretrodroid {
 
 VideoLayout::VideoLayout(bool bottomLeftOrigin, float rotation, Rect viewportRect, unsigned int viewportAlignment) :
@@ -54,7 +58,23 @@ void VideoLayout::updateForegroundVertices() {
 
     float scaleX = viewportRect.getWidth();
     float scaleY = viewportRect.getHeight();
-    if (contentAspect > screenAspect) {
+
+    // INTEGER: the largest whole multiple of the core's base size that fits the viewport (square pixels),
+    // measured after a quarter-turn rotation swaps its sides. 0 = doesn't fit or unknown: use FIT.
+    bool sideways = std::fabs(std::sin(rotation)) > 0.5F;
+    float pixelW = (float) (sideways ? contentHeight : contentWidth);
+    float pixelH = (float) (sideways ? contentWidth : contentHeight);
+    float integerScale = 0.0F;
+    if (scaleMode == SCALE_MODE_INTEGER && pixelW > 0.0F && pixelH > 0.0F && screenW > 0.0F && screenH > 0.0F) {
+        integerScale = std::floor(std::min(screenW / pixelW, screenH / pixelH));
+    }
+
+    if (scaleMode == SCALE_MODE_STRETCH) {
+        // Fill the viewport: scaleX/scaleY already cover it.
+    } else if (integerScale >= 1.0F) {
+        scaleX = integerScale * pixelW / (float) screenWidth;
+        scaleY = integerScale * pixelH / (float) screenHeight;
+    } else if (contentAspect > screenAspect) {
         scaleY *= screenAspect / contentAspect;
     } else {
         scaleX *= contentAspect / screenAspect;
@@ -75,6 +95,10 @@ void VideoLayout::updateForegroundVertices() {
             // do nothing
             break;
     }
+
+    // Screen offset in pixels (positive = right / down), applied after scaling: the picture may leave the viewport.
+    float offsetX = screenWidth > 0 ? 2.0F * screenOffsetX / (float) screenWidth : 0.0F;
+    float offsetY = screenHeight > 0 ? 2.0F * screenOffsetY / (float) screenHeight : 0.0F;
 
     float factorX = scaleX / (scaleX * fabs(cosTheta) + scaleY * fabs(sinTheta));
     float factorY = scaleY / (scaleX * fabs(sinTheta) + scaleY * fabs(cosTheta));
@@ -97,8 +121,8 @@ void VideoLayout::updateForegroundVertices() {
         float rawX = origX * cosTheta - origY * sinTheta;
         float rawY = origX * sinTheta + origY * cosTheta;
 
-        float finalX = rawX * factorX + viewportXOffset;
-        float finalY = rawY * factorY - viewportYOffset;
+        float finalX = rawX * factorX + viewportXOffset + offsetX;
+        float finalY = rawY * factorY - viewportYOffset - offsetY;
 
         rotatedQuad[i][0] = finalX;
         rotatedQuad[i][1] = finalY;
@@ -201,6 +225,29 @@ void VideoLayout::updateRotation(float rotation) {
     LOGD("Updated rotation to : %f", rotation);
 
     this->rotation = rotation;
+    updateBuffers();
+}
+
+void VideoLayout::updateScaleMode(unsigned int scaleMode) {
+    LOGD("Updated scale mode to : %d", scaleMode);
+
+    this->scaleMode = scaleMode;
+    updateBuffers();
+}
+
+void VideoLayout::updateScreenOffset(float x, float y) {
+    LOGD("Updated screen offset to : %f, %f", x, y);
+
+    this->screenOffsetX = x;
+    this->screenOffsetY = y;
+    updateBuffers();
+}
+
+void VideoLayout::updateContentSize(unsigned width, unsigned height) {
+    LOGD("Updated content size to : %d x %d", width, height);
+
+    this->contentWidth = width;
+    this->contentHeight = height;
     updateBuffers();
 }
 

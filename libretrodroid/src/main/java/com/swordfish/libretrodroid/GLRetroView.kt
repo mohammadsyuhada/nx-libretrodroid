@@ -62,13 +62,27 @@ class GLRetroView(
     }
 
     var viewport: RectF by Delegates.observable(RectF(0f, 0f, 1f, 1f)) { _, _, value ->
-        runOnEmulationThread(true) {
-            LibretroDroid.setViewport(value.left, value.top, value.width(), value.height())
-        }
+        val left = value.left
+        val top = value.top
+        val width = value.width()
+        val height = value.height()
+        queueEvent { LibretroDroid.setViewport(left, top, width, height) }
     }
 
     var viewportAlignment: ViewportAlignment by Delegates.observable(ViewportAlignment.CENTER) { _, _, value ->
         LibretroDroid.setViewportAlignment(value.value)
+    }
+
+    /** Applied on the emulation thread; takes effect on the next rendered (or paused-redrawn) frame. */
+    var scaleMode: ScaleMode by Delegates.observable(ScaleMode.FIT) { _, _, value ->
+        queueEvent { LibretroDroid.setScaleMode(value.value) }
+    }
+
+    /** Picture offset in physical pixels (positive = right / down), applied after scaling. */
+    var screenOffset: PointF by Delegates.observable(PointF(0f, 0f)) { _, _, value ->
+        val x = value.x
+        val y = value.y
+        queueEvent { LibretroDroid.setScreenOffset(x, y) }
     }
 
     private val openGLESVersion: Int
@@ -219,6 +233,9 @@ class GLRetroView(
     fun getVariables(): Array<Variable> {
         return LibretroDroid.getVariables()
     }
+
+    /** `[baseWidth, baseHeight, aspectRatio]` of the running game; zeros before it loads. Safe from any thread. */
+    fun getGameGeometry(): FloatArray = LibretroDroid.getGameGeometry()
 
     fun updateVariables(vararg variables: Variable) {
         variables.forEach {

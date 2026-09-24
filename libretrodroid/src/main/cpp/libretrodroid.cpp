@@ -218,6 +218,11 @@ void LibretroDroid::onSurfaceCreated() {
     );
 
     video = std::unique_ptr<Video>(newVideo);
+    video->updateContentSize(system_av_info.geometry.base_width, system_av_info.geometry.base_height);
+    video->updateScaleMode(scaleMode);
+    video->updateScreenOffset(screenOffsetX, screenOffsetY);
+    geometryWidth = (float) system_av_info.geometry.base_width;
+    geometryHeight = (float) system_av_info.geometry.base_height;
 
     if (Environment::getInstance().getHwContextReset() != nullptr) {
         Environment::getInstance().getHwContextReset()();
@@ -282,6 +287,12 @@ void LibretroDroid::create(
     this->immersiveModeConfig = immersiveModeConfig.value_or(ImmersiveMode::Config{});
     audioEnabled = true;
     frameSpeed = 1;
+    scaleMode = SCALE_MODE_FIT;
+    screenOffsetX = 0.0F;
+    screenOffsetY = 0.0F;
+    geometryWidth = 0.0F;
+    geometryHeight = 0.0F;
+    geometryAspect = 0.0F;
 
     core = std::make_unique<Core>(soFilePath);
 
@@ -483,6 +494,8 @@ void LibretroDroid::step() {
             Environment::getInstance().getGameGeometryWidth(),
             Environment::getInstance().getGameGeometryHeight()
         );
+        geometryWidth = (float) Environment::getInstance().getGameGeometryWidth();
+        geometryHeight = (float) Environment::getInstance().getGameGeometryHeight();
 
         dirtyVideo = true;
     }
@@ -500,7 +513,9 @@ float LibretroDroid::getAspectRatio() {
 }
 
 void LibretroDroid::refreshAspectRatio() {
-    video->updateAspectRatio(getAspectRatio());
+    float aspectRatio = getAspectRatio();
+    geometryAspect = aspectRatio;
+    video->updateAspectRatio(aspectRatio);
 }
 
 void LibretroDroid::setRumbleEnabled(bool enabled) {
@@ -622,6 +637,9 @@ void LibretroDroid::afterGameLoad() {
     updateAudioSampleRateMultiplier();
 
     defaultAspectRatio = findDefaultAspectRatio(system_av_info);
+    geometryWidth = (float) system_av_info.geometry.base_width;
+    geometryHeight = (float) system_av_info.geometry.base_height;
+    geometryAspect = defaultAspectRatio;
 }
 
 float LibretroDroid::findDefaultAspectRatio(const retro_system_av_info& system_av_info) {
@@ -653,6 +671,27 @@ void LibretroDroid::setViewportAlignment(unsigned int viewportAlignment) {
     if (video) {
         this->video->updateViewportAlignment(viewportAlignment);
     }
+}
+
+void LibretroDroid::setScaleMode(unsigned int scaleMode) {
+    this->scaleMode = scaleMode;
+
+    if (video) {
+        video->updateScaleMode(scaleMode);
+    }
+}
+
+void LibretroDroid::setScreenOffset(float x, float y) {
+    screenOffsetX = x;
+    screenOffsetY = y;
+
+    if (video) {
+        video->updateScreenOffset(x, y);
+    }
+}
+
+std::array<float, 3> LibretroDroid::getGameGeometry() const {
+    return { geometryWidth.load(), geometryHeight.load(), geometryAspect.load() };
 }
 
 } //namespace libretrodroid

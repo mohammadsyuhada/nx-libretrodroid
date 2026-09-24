@@ -662,6 +662,33 @@ JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_refreshAsp
     LibretroDroid::getInstance().refreshAspectRatio();
 }
 
+JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_setScaleMode(
+    JNIEnv* env,
+    jclass obj,
+    jint scaleMode
+) {
+    LibretroDroid::getInstance().setScaleMode(scaleMode);
+}
+
+JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_setScreenOffset(
+    JNIEnv* env,
+    jclass obj,
+    jfloat x,
+    jfloat y
+) {
+    LibretroDroid::getInstance().setScreenOffset(x, y);
+}
+
+JNIEXPORT jfloatArray JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_getGameGeometry(
+    JNIEnv* env,
+    jclass obj
+) {
+    auto geometry = LibretroDroid::getInstance().getGameGeometry();
+    jfloatArray result = env->NewFloatArray(3);
+    env->SetFloatArrayRegion(result, 0, 3, geometry.data());
+    return result;
+}
+
 }
 
 }

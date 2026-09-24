@@ -26,6 +26,10 @@
 #define V_ALIGN_TOP     1
 #define V_ALIGN_BOTTOM  2
 
+#define SCALE_MODE_FIT      0
+#define SCALE_MODE_INTEGER  1
+#define SCALE_MODE_STRETCH  2
+
 namespace libretrodroid {
 
 class VideoLayout {
@@ -41,6 +45,12 @@ public:
     void updateViewportAlignment(unsigned int viewportAlignment);
 
     void updateRotation(float rotation);
+
+    void updateScaleMode(unsigned int scaleMode);
+
+    void updateScreenOffset(float x, float y);
+
+    void updateContentSize(unsigned width, unsigned height);
 
     std::array<float, 12>& getForegroundVertices() { return foregroundVertices; }
     std::array<float, 12>& getBackgroundVertices() { return backgroundVertices; }
@@ -160,6 +170,11 @@ private:
     unsigned screenHeight = 0;
 
     unsigned viewportAlignment = V_ALIGN_CENTER;
+    unsigned scaleMode = SCALE_MODE_FIT;
+    float screenOffsetX = 0.0F;
+    float screenOffsetY = 0.0F;
+    unsigned contentWidth = 0;
+    unsigned contentHeight = 0;
 };
 
 } // namespace libretrodroid

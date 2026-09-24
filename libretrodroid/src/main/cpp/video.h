@@ -74,6 +74,9 @@ public:
     void updateRendererSize(unsigned width, unsigned height);
     void updateRotation(float rotation);
     void updateShaderType(ShaderManager::Config shaderConfig);
+    void updateScaleMode(unsigned int scaleMode);
+    void updateScreenOffset(float x, float y);
+    void updateContentSize(unsigned width, unsigned height);
 
     void renderFrame();
 
