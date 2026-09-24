@@ -163,7 +163,10 @@ void Video::renderFrame(bool force) {
     updateProgram();
     // Set per draw, not only when a renderer (re)creates its texture: a paused frame and a GL core's
     // framebuffer keep their texture, and a sharpness change must still show on them.
+    // Bind on unit 0: a GL core may leave another unit active with its own texture bound, and it caches
+    // those bindings. Unit 0 is rebound and cleared by the pass loop below anyway.
     GLint filter = linearTexture ? GL_LINEAR : GL_NEAREST;
+    glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, renderer->getTexture());
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
