@@ -127,6 +127,7 @@ public class LibretroDroid {
 
     public static native void updateVariable(Variable variable);
     public static native Variable[] getVariables();
+    public static native boolean updateCoreOptionsDisplay();
 
     public static native int availableDisks();
     public static native int currentDisk();

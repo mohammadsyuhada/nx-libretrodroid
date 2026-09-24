@@ -226,6 +226,11 @@ class GLRetroView(
         }
     }
 
+    /** Asks the core to re-evaluate which options are visible; returns true if any visibility changed. */
+    fun refreshOptionsVisibility(useEmulationThread: Boolean = true): Boolean {
+        return runOnEmulationThread(useEmulationThread) { LibretroDroid.updateCoreOptionsDisplay() }
+    }
+
     fun getAvailableDisks(useEmulationThread: Boolean = true): Int {
         return runOnEmulationThread(useEmulationThread) { LibretroDroid.availableDisks() }
     }

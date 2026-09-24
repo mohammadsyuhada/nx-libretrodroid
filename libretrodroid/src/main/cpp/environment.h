@@ -105,11 +105,19 @@ public:
     std::array<libretrodroid::RumbleState, 4> & getLastRumbleStates();
 
     const std::vector<struct Variable> getVariables() const;
+    bool updateCoreOptionsDisplay();
 
     const std::vector<std::vector<struct Controller>> &getControllers() const;
 
 private:
     bool environment_handle_set_variables(const struct retro_variable* received);
+    bool environment_handle_set_core_options(const struct retro_core_option_definition* definitions);
+    bool environment_handle_set_core_options_intl(const struct retro_core_options_intl* intl);
+    bool environment_handle_set_core_options_v2(const struct retro_core_options_v2* options);
+    bool environment_handle_set_core_options_v2_intl(const struct retro_core_options_v2_intl* intl);
+    bool environment_handle_set_core_options_display(const struct retro_core_option_display* display);
+    bool environment_handle_set_variable(const struct retro_variable* variable);
+    void registerOption(struct Variable option);
     bool environment_handle_get_variable(struct retro_variable* requested);
     bool environment_handle_set_controller_info(const struct retro_controller_info* received);
     bool environment_handle_set_hw_render(struct retro_hw_render_callback* hw_render_callback);
@@ -146,6 +154,8 @@ private:
 
     std::unordered_map<std::string, struct Variable> variables;
     bool dirtyVariables = false;
+    int nextVariableOrder = 0;
+    retro_core_options_update_display_callback_t core_options_update_display_callback = nullptr;
 
     std::vector<std::vector<struct Controller>> controllers;
 };
@@ -155,6 +165,18 @@ public:
     std::string key;
     std::string value;
     std::string description;
+
+    // Rich core option metadata, filled when the core declares its options.
+    std::string label;
+    std::string labelCategorized;
+    std::string info;
+    std::string category;
+    std::string categoryLabel;
+    std::vector<std::string> values;
+    std::vector<std::string> valueLabels;
+    std::string defaultValue;
+    bool visible = true;
+    int order = -1;
 };
 
 struct Controller {

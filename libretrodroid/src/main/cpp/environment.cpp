@@ -24,6 +24,7 @@
 #include <cmath>
 #include <EGL/egl.h>
 #include <unordered_map>
+#include <algorithm>
 
 #include "../../libretro-common/include/libretro.h"
 #include "log.h"
@@ -47,6 +48,11 @@ void Environment::deinitialize() {
     hw_context_destroy = nullptr;
 
     retro_disk_control_callback = nullptr;
+    core_options_update_display_callback = nullptr;
+
+    variables.clear();
+    dirtyVariables = false;
+    nextVariableOrder = 0;
 
     savesDirectory = std::string();
     systemDirectory = std::string();
@@ -78,33 +84,222 @@ void Environment::updateVariable(const std::string& key, const std::string& valu
     }
 }
 
-bool Environment::environment_handle_set_variables(const struct retro_variable* received) {
-    unsigned count = 0;
-    while (received[count].key != nullptr) {
-        LOGD("Received variable %s: %s", received[count].key, received[count].value);
+namespace {
 
-        std::string key(received[count].key);
-        std::string description(received[count].value);
-        std::string value(received[count].value);
+std::string safeString(const char* value) {
+    return value != nullptr ? std::string(value) : std::string();
+}
 
-        auto firstValueStart = value.find(';') + 2;
-        auto firstValueEnd = value.find('|', firstValueStart);
-        value = value.substr(firstValueStart, firstValueEnd - firstValueStart);
+// Rebuilds the legacy "Label; a|b|c" description so SET_VARIABLES consumers keep working.
+std::string legacyDescription(const struct Variable& option) {
+    std::string result = option.label + "; ";
+    for (size_t i = 0; i < option.values.size(); i++) {
+        if (i > 0) result += "|";
+        result += option.values[i];
+    }
+    return result;
+}
 
-        auto currentVariable = variables[key];
-        currentVariable.key = key;
-        currentVariable.description = description;
+void fillValues(struct Variable& option, const struct retro_core_option_value* values) {
+    for (int i = 0; i < RETRO_NUM_CORE_OPTION_VALUES_MAX && values[i].value != nullptr; i++) {
+        option.values.emplace_back(values[i].value);
+        option.valueLabels.emplace_back(
+            values[i].label != nullptr ? values[i].label : values[i].value
+        );
+    }
+}
 
-        if (currentVariable.value.empty()) {
-            currentVariable.value = value;
+// Overrides the labels of values the localized definition also declares.
+void localizeValues(struct Variable& option, const struct retro_core_option_value* localValues) {
+    for (int i = 0; i < RETRO_NUM_CORE_OPTION_VALUES_MAX && localValues[i].value != nullptr; i++) {
+        if (localValues[i].label == nullptr) continue;
+        for (size_t j = 0; j < option.values.size(); j++) {
+            if (option.values[j] == localValues[i].value) {
+                option.valueLabels[j] = localValues[i].label;
+            }
         }
+    }
+}
 
-        variables[key] = currentVariable;
-        LOGD("Assigning variable %s: %s", currentVariable.key.c_str(), currentVariable.value.c_str());
+template <typename Definition>
+const Definition* findDefinition(const Definition* definitions, const std::string& key) {
+    if (definitions == nullptr) return nullptr;
+    for (int i = 0; definitions[i].key != nullptr; i++) {
+        if (key == definitions[i].key) return &definitions[i];
+    }
+    return nullptr;
+}
 
-        count++;
+std::string categoryLabel(const struct retro_core_option_v2_category* categories, const std::string& key) {
+    if (categories == nullptr || key.empty()) return std::string();
+    for (int i = 0; categories[i].key != nullptr; i++) {
+        if (key == categories[i].key) return safeString(categories[i].desc);
+    }
+    return std::string();
+}
+
+struct Variable optionFromV1(
+    const struct retro_core_option_definition& definition,
+    const struct retro_core_option_definition* local
+) {
+    struct Variable option;
+    option.key = definition.key;
+    option.label = safeString(local != nullptr && local->desc != nullptr ? local->desc : definition.desc);
+    option.info = safeString(local != nullptr && local->info != nullptr ? local->info : definition.info);
+    fillValues(option, definition.values);
+    if (local != nullptr) localizeValues(option, local->values);
+    option.defaultValue = safeString(definition.default_value);
+    return option;
+}
+
+struct Variable optionFromV2(
+    const struct retro_core_options_v2& options,
+    const struct retro_core_option_v2_definition& definition,
+    const struct retro_core_options_v2* localOptions
+) {
+    auto local = localOptions != nullptr
+        ? findDefinition(localOptions->definitions, definition.key)
+        : nullptr;
+
+    struct Variable option;
+    option.key = definition.key;
+    option.label = safeString(local != nullptr && local->desc != nullptr ? local->desc : definition.desc);
+    option.labelCategorized = safeString(
+        local != nullptr && local->desc_categorized != nullptr
+            ? local->desc_categorized
+            : definition.desc_categorized
+    );
+    option.info = safeString(local != nullptr && local->info != nullptr ? local->info : definition.info);
+    option.category = safeString(definition.category_key);
+    if (localOptions != nullptr) {
+        option.categoryLabel = categoryLabel(localOptions->categories, option.category);
+    }
+    if (option.categoryLabel.empty()) {
+        option.categoryLabel = categoryLabel(options.categories, option.category);
+    }
+    fillValues(option, definition.values);
+    if (local != nullptr) localizeValues(option, local->values);
+    option.defaultValue = safeString(definition.default_value);
+    return option;
+}
+
+}
+
+void Environment::registerOption(struct Variable option) {
+    if (option.defaultValue.empty() && !option.values.empty()) {
+        option.defaultValue = option.values.front();
+    }
+    option.description = legacyDescription(option);
+
+    auto existing = variables.find(option.key);
+    if (existing != variables.end()) {
+        // Values set by the frontend before the core declared its options win over the default.
+        option.value = existing->second.value;
+        option.visible = existing->second.visible;
+        option.order = existing->second.order;
+    }
+    if (option.value.empty()) {
+        option.value = option.defaultValue;
+    }
+    if (option.order < 0) {
+        option.order = nextVariableOrder++;
     }
 
+    LOGD("Registering option %s: %s", option.key.c_str(), option.value.c_str());
+    variables[option.key] = option;
+}
+
+bool Environment::environment_handle_set_variables(const struct retro_variable* received) {
+    for (unsigned i = 0; received[i].key != nullptr; i++) {
+        LOGD("Received variable %s: %s", received[i].key, received[i].value);
+
+        struct Variable option;
+        option.key = received[i].key;
+
+        std::string description = safeString(received[i].value);
+        auto separator = description.find(';');
+        option.label = description.substr(0, separator);
+
+        if (separator != std::string::npos) {
+            auto choices = description.substr(separator + 1);
+            choices.erase(0, choices.find_first_not_of(' '));
+            size_t start = 0;
+            while (start <= choices.size()) {
+                auto end = choices.find('|', start);
+                if (end == std::string::npos) end = choices.size();
+                if (end > start) {
+                    option.values.push_back(choices.substr(start, end - start));
+                    option.valueLabels.push_back(option.values.back());
+                }
+                start = end + 1;
+            }
+        }
+
+        registerOption(option);
+    }
+
+    return true;
+}
+
+bool Environment::environment_handle_set_core_options(const struct retro_core_option_definition* definitions) {
+    if (definitions == nullptr) return false;
+    for (int i = 0; definitions[i].key != nullptr; i++) {
+        registerOption(optionFromV1(definitions[i], nullptr));
+    }
+    return true;
+}
+
+bool Environment::environment_handle_set_core_options_intl(const struct retro_core_options_intl* intl) {
+    if (intl == nullptr || intl->us == nullptr) return false;
+    for (int i = 0; intl->us[i].key != nullptr; i++) {
+        auto local = findDefinition(intl->local, std::string(intl->us[i].key));
+        registerOption(optionFromV1(intl->us[i], local));
+    }
+    return true;
+}
+
+bool Environment::environment_handle_set_core_options_v2(const struct retro_core_options_v2* options) {
+    if (options == nullptr || options->definitions == nullptr) return false;
+    for (int i = 0; options->definitions[i].key != nullptr; i++) {
+        registerOption(optionFromV2(*options, options->definitions[i], nullptr));
+    }
+    return true;
+}
+
+bool Environment::environment_handle_set_core_options_v2_intl(const struct retro_core_options_v2_intl* intl) {
+    if (intl == nullptr || intl->us == nullptr || intl->us->definitions == nullptr) return false;
+    for (int i = 0; intl->us->definitions[i].key != nullptr; i++) {
+        registerOption(optionFromV2(*intl->us, intl->us->definitions[i], intl->local));
+    }
+    return true;
+}
+
+// A core changing one of its own options: keep our copy in sync, without flagging an update.
+bool Environment::environment_handle_set_variable(const struct retro_variable* variable) {
+    if (variable == nullptr) return true;
+    if (variable->key == nullptr || variable->value == nullptr) return false;
+
+    auto found = variables.find(std::string(variable->key));
+    if (found == variables.end()) return false;
+
+    const auto& values = found->second.values;
+    if (!values.empty() && std::find(values.begin(), values.end(), variable->value) == values.end()) {
+        return false;
+    }
+    found->second.value = variable->value;
+    return true;
+}
+
+bool Environment::updateCoreOptionsDisplay() {
+    if (core_options_update_display_callback == nullptr) return false;
+    return core_options_update_display_callback();
+}
+
+bool Environment::environment_handle_set_core_options_display(const struct retro_core_option_display* display) {
+    if (display == nullptr || display->key == nullptr) return false;
+    auto found = variables.find(std::string(display->key));
+    if (found == variables.end()) return false;
+    found->second.visible = display->visible;
     return true;
 }
 
@@ -247,6 +442,42 @@ bool Environment::handle_callback_environment(unsigned cmd, void *data) {
         case RETRO_ENVIRONMENT_SET_VARIABLES:
             LOGD("Called RETRO_ENVIRONMENT_SET_VARIABLES");
             return environment_handle_set_variables(static_cast<const struct retro_variable*>(data));
+
+        case RETRO_ENVIRONMENT_GET_CORE_OPTIONS_VERSION:
+            LOGD("Called RETRO_ENVIRONMENT_GET_CORE_OPTIONS_VERSION");
+            *((unsigned*) data) = 2;
+            return true;
+
+        case RETRO_ENVIRONMENT_SET_CORE_OPTIONS:
+            LOGD("Called RETRO_ENVIRONMENT_SET_CORE_OPTIONS");
+            return environment_handle_set_core_options(static_cast<const struct retro_core_option_definition*>(data));
+
+        case RETRO_ENVIRONMENT_SET_CORE_OPTIONS_INTL:
+            LOGD("Called RETRO_ENVIRONMENT_SET_CORE_OPTIONS_INTL");
+            return environment_handle_set_core_options_intl(static_cast<const struct retro_core_options_intl*>(data));
+
+        case RETRO_ENVIRONMENT_SET_CORE_OPTIONS_V2:
+            LOGD("Called RETRO_ENVIRONMENT_SET_CORE_OPTIONS_V2");
+            return environment_handle_set_core_options_v2(static_cast<const struct retro_core_options_v2*>(data));
+
+        case RETRO_ENVIRONMENT_SET_CORE_OPTIONS_V2_INTL:
+            LOGD("Called RETRO_ENVIRONMENT_SET_CORE_OPTIONS_V2_INTL");
+            return environment_handle_set_core_options_v2_intl(static_cast<const struct retro_core_options_v2_intl*>(data));
+
+        case RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY:
+            LOGD("Called RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY");
+            return environment_handle_set_core_options_display(static_cast<const struct retro_core_option_display*>(data));
+
+        case RETRO_ENVIRONMENT_SET_VARIABLE:
+            LOGD("Called RETRO_ENVIRONMENT_SET_VARIABLE");
+            return environment_handle_set_variable(static_cast<const struct retro_variable*>(data));
+
+        case RETRO_ENVIRONMENT_SET_CORE_OPTIONS_UPDATE_DISPLAY_CALLBACK: {
+            LOGD("Called RETRO_ENVIRONMENT_SET_CORE_OPTIONS_UPDATE_DISPLAY_CALLBACK");
+            auto callback = static_cast<const struct retro_core_options_update_display_callback*>(data);
+            core_options_update_display_callback = callback != nullptr ? callback->callback : nullptr;
+            return true;
+        }
 
         case RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE: {
             LOGD("Called RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE. Is dirty?: %d", dirtyVariables);
@@ -434,10 +665,13 @@ const std::vector<struct Variable> Environment::getVariables() const {
         }
     );
 
+    // Declared options keep the core's order; values the core never declared go last, by key.
     std::sort(
         result.begin(),
         result.end(),
-        [](struct Variable v1, struct Variable v2) {
+        [](const struct Variable& v1, const struct Variable& v2) {
+            if ((v1.order < 0) != (v2.order < 0)) return v2.order < 0;
+            if (v1.order >= 0) return v1.order < v2.order;
             return v1.key < v2.key;
         }
     );

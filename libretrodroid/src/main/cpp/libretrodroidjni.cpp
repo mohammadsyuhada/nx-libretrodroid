@@ -76,6 +76,13 @@ JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_changeDisk
     return LibretroDroid::getInstance().changeDisk(index);
 }
 
+JNIEXPORT jboolean JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_updateCoreOptionsDisplay(
+    JNIEnv* env,
+    jclass obj
+) {
+    return Environment::getInstance().updateCoreOptionsDisplay();
+}
+
 JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_updateVariable(
     JNIEnv* env,
     jclass obj,
@@ -85,6 +92,28 @@ JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_updateVari
     Environment::getInstance().updateVariable(v.key, v.value);
 }
 
+namespace {
+
+jobjectArray toJavaStringArray(JNIEnv* env, const std::vector<std::string>& values) {
+    jclass stringClass = env->FindClass("java/lang/String");
+    jobjectArray result = env->NewObjectArray(values.size(), stringClass, nullptr);
+    for (size_t i = 0; i < values.size(); i++) {
+        jstring value = env->NewStringUTF(values[i].c_str());
+        env->SetObjectArrayElement(result, i, value);
+        env->DeleteLocalRef(value);
+    }
+    env->DeleteLocalRef(stringClass);
+    return result;
+}
+
+void setStringField(JNIEnv* env, jobject obj, jfieldID field, const std::string& value) {
+    jstring jValue = env->NewStringUTF(value.c_str());
+    env->SetObjectField(obj, field, jValue);
+    env->DeleteLocalRef(jValue);
+}
+
+}
+
 JNIEXPORT jobjectArray JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_getVariables(
     JNIEnv* env,
     jclass obj
@@ -92,28 +121,51 @@ JNIEXPORT jobjectArray JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_ge
     jclass variableClass = env->FindClass("com/swordfish/libretrodroid/Variable");
     jmethodID variableMethodID = env->GetMethodID(variableClass, "<init>", "()V");
 
+    jfieldID jKeyField = env->GetFieldID(variableClass, "key", "Ljava/lang/String;");
+    jfieldID jValueField = env->GetFieldID(variableClass, "value", "Ljava/lang/String;");
+    jfieldID jDescriptionField = env->GetFieldID(variableClass, "description", "Ljava/lang/String;");
+    jfieldID jLabelField = env->GetFieldID(variableClass, "label", "Ljava/lang/String;");
+    jfieldID jLabelCategorizedField = env->GetFieldID(variableClass, "labelCategorized", "Ljava/lang/String;");
+    jfieldID jInfoField = env->GetFieldID(variableClass, "info", "Ljava/lang/String;");
+    jfieldID jCategoryField = env->GetFieldID(variableClass, "category", "Ljava/lang/String;");
+    jfieldID jCategoryLabelField = env->GetFieldID(variableClass, "categoryLabel", "Ljava/lang/String;");
+    jfieldID jValuesField = env->GetFieldID(variableClass, "values", "[Ljava/lang/String;");
+    jfieldID jValueLabelsField = env->GetFieldID(variableClass, "valueLabels", "[Ljava/lang/String;");
+    jfieldID jDefaultValueField = env->GetFieldID(variableClass, "defaultValue", "Ljava/lang/String;");
+    jfieldID jVisibleField = env->GetFieldID(variableClass, "visible", "Z");
+
     auto variables = Environment::getInstance().getVariables();
     jobjectArray result = env->NewObjectArray(variables.size(), variableClass, nullptr);
 
     for (int i = 0; i < variables.size(); i++) {
+        const auto& variable = variables[i];
         jobject jVariable = env->NewObject(variableClass, variableMethodID);
 
-        jfieldID jKeyField = env->GetFieldID(variableClass, "key", "Ljava/lang/String;");
-        jfieldID jValueField = env->GetFieldID(variableClass, "value", "Ljava/lang/String;");
-        jfieldID jDescriptionField = env->GetFieldID(
-            variableClass,
-            "description",
-            "Ljava/lang/String;"
-        );
+        setStringField(env, jVariable, jKeyField, variable.key);
+        setStringField(env, jVariable, jValueField, variable.value);
+        setStringField(env, jVariable, jDescriptionField, variable.description);
 
-        env->SetObjectField(jVariable, jKeyField, env->NewStringUTF(variables[i].key.data()));
-        env->SetObjectField(jVariable, jValueField, env->NewStringUTF(variables[i].value.data()));
-        env->SetObjectField(
-            jVariable,
-            jDescriptionField,
-            env->NewStringUTF(variables[i].description.data()));
+        // Values the frontend set but the core never declared carry no metadata.
+        if (variable.order >= 0) {
+            setStringField(env, jVariable, jLabelField, variable.label);
+            setStringField(env, jVariable, jLabelCategorizedField, variable.labelCategorized);
+            setStringField(env, jVariable, jInfoField, variable.info);
+            setStringField(env, jVariable, jCategoryField, variable.category);
+            setStringField(env, jVariable, jCategoryLabelField, variable.categoryLabel);
+            setStringField(env, jVariable, jDefaultValueField, variable.defaultValue);
+
+            jobjectArray jValues = toJavaStringArray(env, variable.values);
+            env->SetObjectField(jVariable, jValuesField, jValues);
+            env->DeleteLocalRef(jValues);
+
+            jobjectArray jValueLabels = toJavaStringArray(env, variable.valueLabels);
+            env->SetObjectField(jVariable, jValueLabelsField, jValueLabels);
+            env->DeleteLocalRef(jValueLabels);
+        }
+        env->SetBooleanField(jVariable, jVisibleField, variable.visible);
 
         env->SetObjectArrayElement(result, i, jVariable);
+        env->DeleteLocalRef(jVariable);
     }
     return result;
 }
