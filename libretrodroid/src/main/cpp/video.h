@@ -128,7 +128,7 @@ private:
 
     bool presetSupported = true;
     std::optional<PresetChain> requestedPreset;
-    std::optional<PresetChain> loadedPreset;
+    bool presetDirty = false;
     std::unique_ptr<PresetChainRenderer> presetRenderer;
     std::optional<std::string> presetError;
     unsigned frameCount = 0;

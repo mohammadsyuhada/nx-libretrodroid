@@ -235,13 +235,40 @@ std::string PresetChainRenderer::prefixSource(const std::string& source, bool ve
         else versionLine = "#version 320 es\n";
         body.erase(m.position(0), m.length(0));
     }
-    std::string out = versionLine;
+    // "#extension" must precede any non-preprocessor token, so hoist leading ones above the preludes.
+    std::string extensions;
+    std::string kept;
+    std::string::size_type pos = 0;
+    while (pos < body.size()) {
+        std::string::size_type eol = body.find('\n', pos);
+        std::string::size_type next = eol == std::string::npos ? body.size() : eol + 1;
+        std::string line = body.substr(pos, next - pos);
+        std::string::size_type first = line.find_first_not_of(" \t\r\n");
+        if (first == std::string::npos || line.compare(first, 2, "//") == 0) {
+            kept += line;
+        } else if (line.compare(first, 10, "#extension") == 0) {
+            extensions += line.substr(first);
+            if (extensions.back() != '\n') extensions += '\n';
+        } else {
+            break;
+        }
+        pos = next;
+    }
+    body = kept + body.substr(pos);
+    std::string out = versionLine + extensions;
     out += vertex ? "#define VERTEX\n" : "#define FRAGMENT\n";
     out += "#define PARAMETER_UNIFORM\n";
     for (auto& a : aliases) out += "#define " + a + "_ALIAS\n";
-    // ESSL fragment stages have no default float precision, and a 3.00 file may declare "out vec4 FragColor"
-    // before its own precision statement. Redeclaring the default later is legal, so files that set one are unaffected.
-    if (!vertex) {
+    // Redeclaring a default precision later is legal, so files that set their own are unaffected.
+    if (vertex) {
+        // ESSL int defaults to highp in vertex and mediump in fragment stages, yet a uniform declared in both
+        // (FrameCount, FrameDirection) must have one precision, so give the vertex stage the fragment default.
+        out += "#ifdef GL_ES\n"
+               "precision mediump int;\n"
+               "#endif\n";
+    } else {
+        // ESSL fragment stages have no default float precision, and a 3.00 file may declare "out vec4 FragColor"
+        // before its own precision statement.
         out += "#ifdef GL_ES\n"
                "#ifdef GL_FRAGMENT_PRECISION_HIGH\n"
                "precision highp float;\n"

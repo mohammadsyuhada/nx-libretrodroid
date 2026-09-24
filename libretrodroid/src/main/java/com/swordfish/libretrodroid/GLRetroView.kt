@@ -106,7 +106,11 @@ class GLRetroView(
     // polled once after the first frame of each surface and after each push.
     private var shaderErrorPolled = false
 
-    /** Called on the main thread with "pass N: <log>" when a chain fails to build; the view then draws [shader]. */
+    /**
+     * Called on the main thread with "pass N: <log>" when a chain fails to build; the view then draws [shader].
+     * The view keeps [shaderChain] as set, so the host is expected to set it to null, or the broken chain is
+     * pushed (and fails) again whenever the display settings are reapplied.
+     */
     var onShaderError: ((String) -> Unit)? = null
 
     private val openGLESVersion: Int

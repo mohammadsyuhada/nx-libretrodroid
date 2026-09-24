@@ -145,13 +145,13 @@ void Video::setPresetChain(std::optional<PresetChain> chain) {
         return;
     }
     requestedPreset = std::move(chain);
+    presetDirty = true;
     isDirty = true;
 }
 
 void Video::setPresetParameter(const std::string& id, float value) {
+    // Not presetDirty: a parameter change updates the live renderer instead of rebuilding it.
     if (requestedPreset) requestedPreset->params[id] = value;
-    // Keep the loaded copy in step so a parameter change doesn't read as a new chain and rebuild it.
-    if (loadedPreset) loadedPreset->params[id] = value;
     if (presetRenderer) presetRenderer->setParameter(id, value);
     isDirty = true;
 }
@@ -163,9 +163,9 @@ std::optional<std::string> Video::takePresetError() {
 }
 
 void Video::updatePresetRenderer() {
-    if (loadedPreset == requestedPreset && (presetRenderer != nullptr) == requestedPreset.has_value()) return;
+    if (!presetDirty) return;
+    presetDirty = false;
     presetRenderer.reset();
-    loadedPreset = requestedPreset;
     if (!requestedPreset) return;
     try {
         presetRenderer = std::make_unique<PresetChainRenderer>(*requestedPreset);
@@ -173,7 +173,7 @@ void Video::updatePresetRenderer() {
         LOGE("Preset chain failed: %s", e.what());
         presetError = e.what();
         requestedPreset.reset();
-        loadedPreset.reset();
+        presetDirty = true;
     }
 }
 
