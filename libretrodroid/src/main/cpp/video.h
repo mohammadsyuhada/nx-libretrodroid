@@ -78,7 +78,11 @@ public:
     void updateScreenOffset(float x, float y);
     void updateContentSize(unsigned width, unsigned height);
 
-    void renderFrame();
+    // force: draw even when skipDuplicateFrames would skip an unchanged frame.
+    void renderFrame(bool force = false);
+
+    // Redraws the last frame while the core is paused, shielding the core's GL state it doesn't expect changed.
+    void renderPausedFrame();
 
     void onNewFrame(const void *data, unsigned width, unsigned height, size_t pitch);
 

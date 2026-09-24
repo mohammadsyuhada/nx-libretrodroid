@@ -16,6 +16,7 @@
  */
 
 #include <GLES2/gl2.h>
+#include <GLES3/gl3.h>
 #include <EGL/egl.h>
 #include <cstdlib>
 #include <string>
@@ -138,8 +139,8 @@ void Video::updateProgram() {
     renderer->setShaders(shaders);
 }
 
-void Video::renderFrame() {
-    if (skipDuplicateFrames && !isDirty) return;
+void Video::renderFrame(bool force) {
+    if (skipDuplicateFrames && !isDirty && !force) return;
     isDirty = false;
 
     glDisable(GL_DEPTH_TEST);
@@ -219,6 +220,46 @@ void Video::renderFrame() {
 
         glUseProgram(0);
     }
+}
+
+void Video::renderPausedFrame() {
+    // A GL core may leave state set after its last frame that renderFrame doesn't reset (it normally draws
+    // inside the core's video callback). Neutralise it for this draw and restore it, so the core resumes
+    // with exactly the state it left (GL cores cache their state).
+    GLboolean scissor = glIsEnabled(GL_SCISSOR_TEST);
+    GLboolean blend = glIsEnabled(GL_BLEND);
+    GLboolean stencil = glIsEnabled(GL_STENCIL_TEST);
+    GLboolean cull = glIsEnabled(GL_CULL_FACE);
+    GLboolean depth = glIsEnabled(GL_DEPTH_TEST);
+    GLint arrayBuffer = 0;
+    glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &arrayBuffer);
+    GLboolean colorMask[4];
+    glGetBooleanv(GL_COLOR_WRITEMASK, colorMask);
+
+    // Only a GL core (ES3 framebuffer renderer) can leave a vertex array object bound; renderFrame feeds
+    // client-side attribute arrays, which a bound VAO would reject (and the draw would clobber the core's VAO).
+    bool glCore = rendersInVideoCallback();
+    GLint vertexArray = 0;
+    if (glCore) glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &vertexArray);
+
+    glDisable(GL_SCISSOR_TEST);
+    glDisable(GL_BLEND);
+    glDisable(GL_STENCIL_TEST);
+    glDisable(GL_CULL_FACE);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    if (glCore) glBindVertexArray(0);
+
+    renderFrame(true);
+
+    if (glCore) glBindVertexArray(vertexArray);
+    glColorMask(colorMask[0], colorMask[1], colorMask[2], colorMask[3]);
+    glBindBuffer(GL_ARRAY_BUFFER, arrayBuffer);
+    if (scissor) glEnable(GL_SCISSOR_TEST);
+    if (blend) glEnable(GL_BLEND);
+    if (stencil) glEnable(GL_STENCIL_TEST);
+    if (cull) glEnable(GL_CULL_FACE);
+    if (depth) glEnable(GL_DEPTH_TEST);  // renderFrame disables it
 }
 
 float Video::getScreenDensity() {

@@ -473,8 +473,14 @@ void LibretroDroid::step() {
     for (size_t i = 0; i < frames * frameSpeed; i++)
         core->retro_run();
 
-    if (video && !video->rendersInVideoCallback()) {
-        video->renderFrame();
+    if (video) {
+        if (frameSpeed == 0) {
+            // Paused: the core doesn't run, so redraw its last frame with the current shader and layout.
+            // GL cores otherwise draw only inside their video callback, leaving the paused picture stale.
+            video->renderPausedFrame();
+        } else if (!video->rendersInVideoCallback()) {
+            video->renderFrame();
+        }
     }
 
     if (fpsSync) {
