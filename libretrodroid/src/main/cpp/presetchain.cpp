@@ -239,6 +239,17 @@ std::string PresetChainRenderer::prefixSource(const std::string& source, bool ve
     out += vertex ? "#define VERTEX\n" : "#define FRAGMENT\n";
     out += "#define PARAMETER_UNIFORM\n";
     for (auto& a : aliases) out += "#define " + a + "_ALIAS\n";
+    // ESSL fragment stages have no default float precision, and a 3.00 file may declare "out vec4 FragColor"
+    // before its own precision statement. Redeclaring the default later is legal, so files that set one are unaffected.
+    if (!vertex) {
+        out += "#ifdef GL_ES\n"
+               "#ifdef GL_FRAGMENT_PRECISION_HIGH\n"
+               "precision highp float;\n"
+               "#else\n"
+               "precision mediump float;\n"
+               "#endif\n"
+               "#endif\n";
+    }
     out += body;
     return out;
 }
