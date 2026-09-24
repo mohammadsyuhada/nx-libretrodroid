@@ -126,6 +126,27 @@ class GLRetroView(
         )
         LibretroDroid.setRumbleEnabled(data.rumbleEventsEnabled)
         LibretroDroid.setViewportAlignment(data.viewportAlignment.value)
+        reapplyDisplaySettings()
+    }
+
+    /**
+     * Pushes this view's remembered display settings to native, queued on the GL thread after create(), so values
+     * set at any time (even before create) win over whatever an earlier session left in the native singleton.
+     */
+    private fun reapplyDisplaySettings() {
+        val rect = viewport
+        val left = rect.left
+        val top = rect.top
+        val width = rect.width()
+        val height = rect.height()
+        val mode = scaleMode.value
+        val offsetX = screenOffset.x
+        val offsetY = screenOffset.y
+        queueEvent {
+            LibretroDroid.setViewport(left, top, width, height)
+            LibretroDroid.setScaleMode(mode)
+            LibretroDroid.setScreenOffset(offsetX, offsetY)
+        }
     }
 
     @OnLifecycleEvent(Lifecycle.Event.ON_DESTROY)

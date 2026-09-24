@@ -287,9 +287,8 @@ void LibretroDroid::create(
     this->immersiveModeConfig = immersiveModeConfig.value_or(ImmersiveMode::Config{});
     audioEnabled = true;
     frameSpeed = 1;
-    scaleMode = SCALE_MODE_FIT;
-    screenOffsetX = 0.0F;
-    screenOffsetY = 0.0F;
+    // scaleMode, screenOffset and viewportRect are not reset here: setters may arrive (on the GL thread) before
+    // create(), and GLRetroView re-applies its own values right after create().
     geometryWidth = 0.0F;
     geometryHeight = 0.0F;
     geometryAspect = 0.0F;
