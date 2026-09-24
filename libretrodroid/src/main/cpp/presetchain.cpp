@@ -167,6 +167,36 @@ void unbindAttrib(GLint location) {
     if (location != -1) glDisableVertexAttribArray(location);
 }
 
+// Selects unit 0 with tightly packed client-memory unpacking for the LUT uploads, and puts back whatever a
+// GL core left (active unit, its unit 0 binding, unpack state) when it goes out of scope, throw or not:
+// GL cores cache that state.
+class UploadState {
+public:
+    UploadState() {
+        glGetIntegerv(GL_ACTIVE_TEXTURE, &activeTexture);
+        glActiveTexture(GL_TEXTURE0);
+        glGetIntegerv(GL_TEXTURE_BINDING_2D, &texture);
+        glGetIntegerv(GL_PIXEL_UNPACK_BUFFER_BINDING, &unpackBuffer);
+        glGetIntegerv(GL_UNPACK_ALIGNMENT, &alignment);
+        glGetIntegerv(GL_UNPACK_ROW_LENGTH, &rowLength);
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    }
+    ~UploadState() {
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, rowLength);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, alignment);
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, (GLuint) unpackBuffer);
+        glBindTexture(GL_TEXTURE_2D, (GLuint) texture);
+        glActiveTexture((GLenum) activeTexture);
+    }
+    UploadState(const UploadState&) = delete;
+    UploadState& operator=(const UploadState&) = delete;
+
+private:
+    GLint activeTexture = GL_TEXTURE0, texture = 0, unpackBuffer = 0, alignment = 4, rowLength = 0;
+};
+
 } // namespace
 
 std::array<int, 4> foregroundRect(const std::array<float, 12>& vertices, int screenW, int screenH) {
@@ -191,7 +221,13 @@ std::string PresetChainRenderer::prefixSource(const std::string& source, bool ve
     static const std::regex versionRe(R"(^[ \t]*#version[ \t]+(\d+)[^\n]*\n?)", std::regex::multiline);
     std::smatch m;
     if (std::regex_search(body, m, versionRe)) {
-        unsigned long v = std::stoul(m[1]);
+        // A number too long for stoul is still "newer than 330".
+        unsigned long v = 0;
+        try {
+            v = std::stoul(m[1]);
+        } catch (const std::exception&) {
+            v = std::numeric_limits<unsigned long>::max();
+        }
         if (v == 100) versionLine = "#version 100\n";
         else if (v == 300 || v == 310 || v == 320) versionLine = "#version " + std::to_string(v) + " es\n";
         else if (v >= 110 && v <= 329) versionLine = "#version 300 es\n";
@@ -229,29 +265,23 @@ PresetChainRenderer::PresetChainRenderer(const PresetChain& chain) : params(chai
             if (!pass.alias.empty()) aliases.push_back(pass.alias);
         }
 
-        // A GL core may leave its own unpack state; LUT rows are tightly packed RGBA.
-        GLint unpackAlignment = 4, unpackRowLength = 0;
-        glGetIntegerv(GL_UNPACK_ALIGNMENT, &unpackAlignment);
-        glGetIntegerv(GL_UNPACK_ROW_LENGTH, &unpackRowLength);
-        glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-        glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
         for (auto& lut : chain.luts) {
             if (lut.width == 0 || lut.height == 0 || lut.rgba.size() != (size_t) lut.width * lut.height * 4) {
-                glPixelStorei(GL_UNPACK_ALIGNMENT, unpackAlignment);
-                glPixelStorei(GL_UNPACK_ROW_LENGTH, unpackRowLength);
                 throw std::runtime_error("lut " + lut.id + ": pixel data does not match its size");
             }
-            GLuint texture = 0;
-            glGenTextures(1, &texture);
-            lutTextures.push_back(texture);
-            glBindTexture(GL_TEXTURE_2D, texture);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, (GLsizei) lut.width, (GLsizei) lut.height, 0,
-                         GL_RGBA, GL_UNSIGNED_BYTE, lut.rgba.data());
-            setSampling(lut.linear, lut.wrap);
         }
-        glBindTexture(GL_TEXTURE_2D, 0);
-        glPixelStorei(GL_UNPACK_ALIGNMENT, unpackAlignment);
-        glPixelStorei(GL_UNPACK_ROW_LENGTH, unpackRowLength);
+        if (!chain.luts.empty()) {
+            UploadState state;
+            for (auto& lut : chain.luts) {
+                GLuint texture = 0;
+                glGenTextures(1, &texture);
+                lutTextures.push_back(texture);
+                glBindTexture(GL_TEXTURE_2D, texture);
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, (GLsizei) lut.width, (GLsizei) lut.height, 0,
+                             GL_RGBA, GL_UNSIGNED_BYTE, lut.rgba.data());
+                setSampling(lut.linear, lut.wrap);
+            }
+        }
 
         for (size_t index = 0; index < chain.passes.size(); ++index) {
             Pass pass;
@@ -369,12 +399,11 @@ void PresetChainRenderer::resize(unsigned srcW, unsigned srcH, unsigned viewport
             width = viewportW;
             height = viewportH;
         } else {
-            // No scale: an intermediate pass keeps its source size, the last pass (other axis scaled) the viewport's.
-            bool last = i + 1 == passes.size();
+            // An axis without a scale keeps its source size (RetroArch's RARCH_SCALE_INPUT), last pass included.
             int typeX = pass.cfg.scaleTypeX, typeY = pass.cfg.scaleTypeY;
             float scaleX = pass.cfg.scaleX, scaleY = pass.cfg.scaleY;
-            if (typeX == 0) { typeX = last ? 2 : 1; scaleX = 1.0F; }
-            if (typeY == 0) { typeY = last ? 2 : 1; scaleY = 1.0F; }
+            if (typeX == 0) { typeX = 1; scaleX = 1.0F; }
+            if (typeY == 0) { typeY = 1; scaleY = 1.0F; }
             width = passSize(typeX, scaleX, previousW, viewportW, maxTextureSize);
             height = passSize(typeY, scaleY, previousH, viewportH, maxTextureSize);
 
@@ -416,7 +445,21 @@ void PresetChainRenderer::render(
     bool defaultLinear,
     unsigned frameCount
 ) {
-    if (passes.empty()) return;
+    // No frame yet: nothing to draw, and no point sizing FBOs from it.
+    if (passes.empty() || srcW == 0 || srcH == 0) return;
+
+    // Units: 0 = Texture, 1 = Orig, 2.. = LUTs in order, then Pass1..PassN outputs.
+    const unsigned lutBase = 2;
+    const auto passBase = lutBase + (unsigned) lutTextures.size();
+    const auto units = passBase + (unsigned) passes.size();
+
+    // A GL core caches its texture bindings: put back what it left on every unit the chain touches.
+    std::vector<GLint> savedBindings(units, 0);
+    for (unsigned unit = 0; unit < units; ++unit) {
+        glActiveTexture(GL_TEXTURE0 + unit);
+        glGetIntegerv(GL_TEXTURE_BINDING_2D, &savedBindings[unit]);
+    }
+    glActiveTexture(GL_TEXTURE0);
 
     auto rect = foregroundRect(foreground, screenW, screenH);
     auto viewportW = (unsigned) rect[2];
@@ -426,10 +469,6 @@ void PresetChainRenderer::render(
         resize(srcW, srcH, viewportW, viewportH);
         sizedFor = inputs;
     }
-
-    // Units: 0 = Texture, 1 = Orig, 2.. = LUTs in order, then Pass1..PassN outputs.
-    const unsigned lutBase = 2;
-    const auto passBase = lutBase + (unsigned) lutTextures.size();
 
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, source);
@@ -529,10 +568,9 @@ void PresetChainRenderer::render(
         unbindAttrib(blit->texCoord);
     }
 
-    auto units = passBase + (unsigned) passes.size();
     for (unsigned unit = 0; unit < units; ++unit) {
         glActiveTexture(GL_TEXTURE0 + unit);
-        glBindTexture(GL_TEXTURE_2D, 0);
+        glBindTexture(GL_TEXTURE_2D, (GLuint) savedBindings[unit]);
     }
     glActiveTexture(GL_TEXTURE0);
     glUseProgram(0);
