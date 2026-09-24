@@ -107,6 +107,7 @@ private:
 
     bool isDirty = false;
     bool skipDuplicateFrames = false;
+    bool linearTexture = true;
 
     std::vector<ShaderChainEntry> shadersChain;
 

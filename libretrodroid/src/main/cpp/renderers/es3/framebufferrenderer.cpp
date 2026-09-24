@@ -21,6 +21,20 @@
 
 namespace libretrodroid {
 
+namespace {
+
+// The core renders into the main framebuffer and the intermediate passes into their own: only a change in
+// the intermediate passes needs them rebuilt. The final sampling filter is set per draw by Video.
+bool sameIntermediatePasses(const ShaderManager::Chain& a, const ShaderManager::Chain& b) {
+    if (a.passes.size() != b.passes.size()) return false;
+    for (size_t i = 0; i + 1 < a.passes.size(); ++i) {
+        if (!(a.passes[i] == b.passes[i])) return false;
+    }
+    return true;
+}
+
+}
+
 FramebufferRenderer::FramebufferRenderer(
     unsigned width,
     unsigned height,
@@ -85,8 +99,9 @@ bool FramebufferRenderer::rendersInVideoCallback() {
 }
 
 void FramebufferRenderer::setShaders(ShaderManager::Chain shaders) {
-    if (shaders != this->shaders) {
-        this->shaders = shaders;
+    bool rebuild = !sameIntermediatePasses(this->shaders, shaders);
+    this->shaders = std::move(shaders);
+    if (rebuild) {
         isDirty = true;
     }
 }

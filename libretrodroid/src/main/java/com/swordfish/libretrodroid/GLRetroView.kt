@@ -57,8 +57,10 @@ class GLRetroView(
         LibretroDroid.setFrameSpeed(value)
     }
 
+    /** Applied on the emulation thread (the renderer reads it there); takes effect on the next drawn frame. */
     var shader: ShaderConfig by Delegates.observable(data.shader) { _, _, value ->
-        LibretroDroid.setShaderConfig(buildShader(value))
+        val shader = buildShader(value)
+        queueEvent { LibretroDroid.setShaderConfig(shader) }
     }
 
     var viewport: RectF by Delegates.observable(RectF(0f, 0f, 1f, 1f)) { _, _, value ->
@@ -115,7 +117,7 @@ class GLRetroView(
             data.systemDirectory,
             data.savesDirectory,
             data.variables,
-            buildShader(data.shader),
+            buildShader(shader),
             getDefaultRefreshRate(),
             data.preferLowLatencyAudio,
             data.gameVirtualFiles.isNotEmpty(),
@@ -452,7 +454,10 @@ class GLRetroView(
 
     private fun buildShader(config: ShaderConfig): GLRetroShader {
         return when (config) {
-            is ShaderConfig.Default -> GLRetroShader(LibretroDroid.SHADER_DEFAULT)
+            is ShaderConfig.Default -> GLRetroShader(
+                LibretroDroid.SHADER_DEFAULT,
+                if (config.linear) emptyMap() else mapOf(LibretroDroid.SHADER_DEFAULT_PARAM_LINEAR to "0"),
+            )
             is ShaderConfig.CRT -> GLRetroShader(LibretroDroid.SHADER_CRT)
             is ShaderConfig.LCD -> GLRetroShader(LibretroDroid.SHADER_LCD)
             is ShaderConfig.Sharp -> GLRetroShader(LibretroDroid.SHADER_SHARP)

@@ -208,7 +208,7 @@ class SpikeGameActivity : AppCompatActivity() {
             coreFilePath = coreName
             systemDirectory = systemDir.absolutePath
             savesDirectory = savesDir.absolutePath
-            shader = ShaderConfig.Default
+            shader = ShaderConfig.Default()
             preferLowLatencyAudio = true
             rumbleEventsEnabled = false
             variables = defaultVariablesFor(coreName, systemDir)

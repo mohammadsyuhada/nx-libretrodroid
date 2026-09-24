@@ -107,6 +107,7 @@ void Video::updateProgram() {
     loadedShaderType = requestedShaderConfig;
 
     auto shaders = ShaderManager::getShader(requestedShaderConfig);
+    linearTexture = shaders.linearTexture;
 
     shadersChain = {};
 
@@ -159,6 +160,13 @@ void Video::renderFrame() {
     }
 
     updateProgram();
+    // Set per draw, not only when a renderer (re)creates its texture: a paused frame and a GL core's
+    // framebuffer keep their texture, and a sharpness change must still show on them.
+    GLint filter = linearTexture ? GL_LINEAR : GL_NEAREST;
+    glBindTexture(GL_TEXTURE_2D, renderer->getTexture());
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
+    glBindTexture(GL_TEXTURE_2D, 0);
     for (int i = 0; i < shadersChain.size(); ++i) {
         auto shader = shadersChain[i];
         auto passData = renderer->getPassData(i);

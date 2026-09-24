@@ -105,7 +105,7 @@ class SampleActivity : AppCompatActivity() {
              * SHADER_SHARP:        Raw, unfiltered image.
              * SHADER_UPSCALING:    Improve the quality of retro graphics.
              */
-            shader = ShaderConfig.Default
+            shader = ShaderConfig.Default()
 
             /* (Optional) Viewport alignment to apply to the view: CENTER, TOP, BOTTOM */
             viewportAlignment = ViewportAlignment.CENTER

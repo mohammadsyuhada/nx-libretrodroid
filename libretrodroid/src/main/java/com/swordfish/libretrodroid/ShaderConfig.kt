@@ -19,7 +19,8 @@ package com.swordfish.libretrodroid
 
 sealed interface ShaderConfig {
 
-    object Default : ShaderConfig
+    /** The plain shader; [linear] = bilinear sampling of the core's frame, false = nearest-neighbour. */
+    data class Default(val linear: Boolean = true) : ShaderConfig
     object CRT : ShaderConfig
     object LCD : ShaderConfig
     object Sharp : ShaderConfig

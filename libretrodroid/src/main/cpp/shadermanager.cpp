@@ -1530,7 +1530,10 @@ const std::string ShaderManager::cut3UpscalePass2Fragment =
 ShaderManager::Chain ShaderManager::getShader(const ShaderManager::Config& config) {
     switch (config.type) {
     case Type::SHADER_DEFAULT: {
-        return { { { defaultShaderVertex, defaultShaderFragment, true, 1.0 } }, true };
+        // "LINEAR" = "0" samples the core's frame nearest-neighbour; anything else (or absent) is bilinear.
+        auto linearParam = config.params.find("LINEAR");
+        bool linear = linearParam == config.params.end() || linearParam->second != "0";
+        return { { { defaultShaderVertex, defaultShaderFragment, true, 1.0 } }, linear };
     }
 
     case Type::SHADER_CRT: {

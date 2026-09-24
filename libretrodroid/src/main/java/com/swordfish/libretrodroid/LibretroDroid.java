@@ -38,6 +38,8 @@ public class LibretroDroid {
     public static final int SHADER_UPSCALE_CUT2 = 5;
     public static final int SHADER_UPSCALE_CUT3 = 6;
 
+    public static final String SHADER_DEFAULT_PARAM_LINEAR = "LINEAR";
+
     public static final int SCALE_MODE_FIT = 0;
     public static final int SCALE_MODE_INTEGER = 1;
     public static final int SCALE_MODE_STRETCH = 2;
