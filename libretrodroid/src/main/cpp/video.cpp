@@ -139,6 +139,44 @@ void Video::updateProgram() {
     renderer->setShaders(shaders);
 }
 
+void Video::setPresetChain(std::optional<PresetChain> chain) {
+    if (!presetSupported) {
+        if (chain) LOGW("Preset chains need OpenGL ES 3");
+        return;
+    }
+    requestedPreset = std::move(chain);
+    isDirty = true;
+}
+
+void Video::setPresetParameter(const std::string& id, float value) {
+    if (requestedPreset) requestedPreset->params[id] = value;
+    // Keep the loaded copy in step so a parameter change doesn't read as a new chain and rebuild it.
+    if (loadedPreset) loadedPreset->params[id] = value;
+    if (presetRenderer) presetRenderer->setParameter(id, value);
+    isDirty = true;
+}
+
+std::optional<std::string> Video::takePresetError() {
+    auto e = presetError;
+    presetError.reset();
+    return e;
+}
+
+void Video::updatePresetRenderer() {
+    if (loadedPreset == requestedPreset && (presetRenderer != nullptr) == requestedPreset.has_value()) return;
+    presetRenderer.reset();
+    loadedPreset = requestedPreset;
+    if (!requestedPreset) return;
+    try {
+        presetRenderer = std::make_unique<PresetChainRenderer>(*requestedPreset);
+    } catch (const std::exception& e) {
+        LOGE("Preset chain failed: %s", e.what());
+        presetError = e.what();
+        requestedPreset.reset();
+        loadedPreset.reset();
+    }
+}
+
 void Video::renderFrame(bool force) {
     if (skipDuplicateFrames && !isDirty && !force) return;
     isDirty = false;
@@ -161,6 +199,7 @@ void Video::renderFrame(bool force) {
     }
 
     updateProgram();
+    updatePresetRenderer();
     // Set per draw, not only when a renderer (re)creates its texture: a paused frame and a GL core's
     // framebuffer keep their texture, and a sharpness change must still show on them.
     // Bind on unit 0: a GL core may leave another unit active with its own texture bound, and it caches
@@ -171,6 +210,16 @@ void Video::renderFrame(bool force) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
     glBindTexture(GL_TEXTURE_2D, 0);
+
+    if (presetRenderer) {
+        presetRenderer->render(
+            renderer->getTexture(), (unsigned) getTextureWidth(), (unsigned) getTextureHeight(),
+            videoLayout.getTextureCoordinates(), videoLayout.getForegroundVertices(), videoLayout.getFramebufferVertices(),
+            videoLayout.getScreenWidth(), videoLayout.getScreenHeight(), linearTexture, frameCount);
+        frameCount++;
+        return;
+    }
+
     for (int i = 0; i < shadersChain.size(); ++i) {
         auto shader = shadersChain[i];
         auto passData = renderer->getPassData(i);
@@ -223,6 +272,7 @@ void Video::renderFrame(bool force) {
 
         glUseProgram(0);
     }
+    frameCount++;
 }
 
 void Video::renderPausedFrame() {
@@ -372,6 +422,9 @@ void Video::initializeRenderer(RenderingOptions renderingOptions) {
             renderer = new ImageRendererES2();
         }
     }
+
+    // Preset chains render through ES3 framebuffers.
+    presetSupported = renderingOptions.openglESVersion >= 3;
 
     renderer->setPixelFormat(renderingOptions.pixelFormat);
     updateProgram();

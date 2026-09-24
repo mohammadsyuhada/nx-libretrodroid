@@ -17,6 +17,7 @@
 
 #include "videolayout.h"
 #include "log.h"
+#include "presetchain.h"
 
 #include <algorithm>
 #include <cmath>
@@ -276,6 +277,10 @@ std::pair<float, float> VideoLayout::getRelativePosition(float touchX, float tou
     LOGD("Computed relative touch position: %.2f, %.2f", relativeX, relativeY);
 
     return {relativeX, relativeY};
+}
+
+std::array<int, 4> VideoLayout::getForegroundRectPixels() {
+    return foregroundRect(foregroundVertices, (int) screenWidth, (int) screenHeight);
 }
 
 void VideoLayout::updateRelativeForegroundBounds() {

@@ -58,6 +58,9 @@ public:
     std::array<float, 12>& getTextureCoordinates() { return textureCoordinates; }
     std::array<float, 4>& getRelativeForegroundBounds() { return relativeForegroundBounds; }
 
+    // The foreground quad in window pixels (x, y from the bottom-left, w, h), for viewport-scaled shader passes.
+    std::array<int, 4> getForegroundRectPixels();
+
     int getScreenWidth() { return screenWidth; }
 
     int getScreenHeight() { return screenHeight; }

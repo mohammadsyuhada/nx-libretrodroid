@@ -21,12 +21,15 @@
 #include <GLES2/gl2.h>
 #include <optional>
 #include <array>
+#include <memory>
+#include <string>
 
 #include "renderers/renderer.h"
 #include "shadermanager.h"
 #include "utils/rect.h"
 #include "immersivemode.h"
 #include "videolayout.h"
+#include "presetchain.h"
 
 namespace libretrodroid {
 
@@ -94,6 +97,14 @@ public:
         return renderer->rendersInVideoCallback();
     }
 
+    // A RetroArch preset chain drawn instead of the built-in shader; nullopt returns to it.
+    void setPresetChain(std::optional<PresetChain> chain);
+    void setPresetParameter(const std::string& id, float value);
+    // The last chain build error, cleared on read. Empty when the chain built.
+    std::optional<std::string> takePresetError();
+    // Builds the requested chain now (on the GL thread) so a caller can read takePresetError right after.
+    void updatePresetRenderer();
+
 private:
     void updateProgram();
 
@@ -114,6 +125,13 @@ private:
     bool linearTexture = true;
 
     std::vector<ShaderChainEntry> shadersChain;
+
+    bool presetSupported = true;
+    std::optional<PresetChain> requestedPreset;
+    std::optional<PresetChain> loadedPreset;
+    std::unique_ptr<PresetChainRenderer> presetRenderer;
+    std::optional<std::string> presetError;
+    unsigned frameCount = 0;
 
     bool immersiveModeEnabled = false;
     ImmersiveMode immersiveMode;

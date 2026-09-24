@@ -60,6 +60,8 @@ add_library(libretrodroid SHARED
         input.cpp
         shadermanager.h
         shadermanager.cpp
+        presetchain.h
+        presetchain.cpp
         rumble.h
         rumble.cpp
         rumblestate.h
