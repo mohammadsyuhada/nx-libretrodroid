@@ -108,6 +108,7 @@ private:
     bool haveMemoryMap = false;
     rc_libretro_memory_regions_t regions {};
     bool regionsReady = false;
+    bool regionsInitTried = false;   // readMemory's lazy init runs at most once per loadGame
     uint32_t consoleId = 0;
     size_t (*coreGetMemorySize)(unsigned) = nullptr;
     void* (*coreGetMemoryData)(unsigned) = nullptr;

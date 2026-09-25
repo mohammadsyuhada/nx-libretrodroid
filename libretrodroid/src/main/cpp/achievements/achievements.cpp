@@ -82,6 +82,12 @@ void Achievements::initMemoryRegions() {
 
 uint32_t Achievements::readMemory(uint32_t address, uint8_t* buffer, uint32_t numBytes, rc_client_t*) {
     auto& self = getInstance();
+    if (!self.regionsReady && !self.regionsInitTried) {
+        // rc_client validates every achievement address before the load callback runs; never answer those
+        // reads from the raw SYSTEM_RAM fallback when a region table can be built (mirrors RetroArch).
+        self.regionsInitTried = true;
+        self.initMemoryRegions();
+    }
     if (self.regionsReady) return rc_libretro_memory_read(&self.regions, address, buffer, numBytes);
     // Fallback (nx-redux ra_integration.c): raw system RAM, then save RAM, with an overflow-safe bounds check.
     for (unsigned id : { (unsigned) RETRO_MEMORY_SYSTEM_RAM, (unsigned) RETRO_MEMORY_SAVE_RAM }) {
@@ -213,6 +219,8 @@ void Achievements::loginCallback(int result, const char* errorMessage, rc_client
 void Achievements::loadGame(const std::string& hash, uint32_t console) {
     if (!client) return;
     consoleId = console;
+    regionsInitTried = true;
+    initMemoryRegions();   // before rc_client_activate_game validates addresses through readMemory
     rc_client_begin_load_game(client, hash.c_str(), loadGameCallback, nullptr);
 }
 
@@ -250,6 +258,7 @@ void Achievements::unloadGame() {
     if (!client) return;
     rc_client_unload_game(client);
     if (regionsReady) { rc_libretro_memory_destroy(&regions); regionsReady = false; }
+    regionsInitTried = false;
 }
 
 std::vector<AchievementInfo> Achievements::list() {
