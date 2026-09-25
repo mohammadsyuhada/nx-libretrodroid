@@ -719,6 +719,16 @@ void LibretroDroid::achievementsUnloadGame() {
     Achievements::getInstance().unloadGame();
 }
 
+std::vector<AchievementInfo> LibretroDroid::achievementsList() {
+    std::lock_guard<std::mutex> lock(coreLock);
+    return Achievements::getInstance().list();
+}
+
+AchievementSummary LibretroDroid::achievementsSummary() {
+    std::lock_guard<std::mutex> lock(coreLock);
+    return Achievements::getInstance().summary();
+}
+
 float LibretroDroid::findDefaultAspectRatio(const retro_system_av_info& system_av_info) {
     float result = system_av_info.geometry.aspect_ratio;
     if (result < 0) {

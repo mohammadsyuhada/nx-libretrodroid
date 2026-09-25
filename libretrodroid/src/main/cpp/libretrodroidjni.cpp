@@ -315,6 +315,64 @@ JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_achievemen
     Achievements::getInstance().serverResponse((uint32_t) requestId, (int) status, b.stdString());
 }
 
+JNIEXPORT jobjectArray JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_achievementsList(
+    JNIEnv* env,
+    jclass obj
+) {
+    auto items = LibretroDroid::getInstance().achievementsList();
+    jclass cls = env->FindClass("com/swordfish/libretrodroid/AchievementInfo");
+    jmethodID ctor = env->GetMethodID(cls, "<init>", "(ILjava/lang/String;Ljava/lang/String;ILjava/lang/String;IJLjava/lang/String;FFII)V");
+    jobjectArray out = env->NewObjectArray((jsize) items.size(), cls, nullptr);
+    for (jsize i = 0; i < (jsize) items.size(); i++) {
+        auto& a = items[i];
+        jstring title = env->NewStringUTF(a.title.c_str()), desc = env->NewStringUTF(a.description.c_str()),
+                badge = env->NewStringUTF(a.badge.c_str()), progress = env->NewStringUTF(a.progress.c_str());
+        jobject item = env->NewObject(cls, ctor, (jint) a.id, title, desc, (jint) a.points, badge, (jint) a.state, (jlong) a.unlockTime,
+                                      progress, (jfloat) a.percent, (jfloat) a.rarity, (jint) a.type, (jint) a.category);
+        env->SetObjectArrayElement(out, i, item);
+        env->DeleteLocalRef(item); env->DeleteLocalRef(title); env->DeleteLocalRef(desc); env->DeleteLocalRef(badge); env->DeleteLocalRef(progress);
+    }
+    env->DeleteLocalRef(cls);
+    return out;
+}
+
+JNIEXPORT jintArray JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_achievementsSummary(
+    JNIEnv* env,
+    jclass obj
+) {
+    auto s = LibretroDroid::getInstance().achievementsSummary();
+    jint values[3] = { (jint) s.unlocked, (jint) s.total, (jint) s.points };
+    jintArray out = env->NewIntArray(3);
+    env->SetIntArrayRegion(out, 0, 3, values);
+    return out;
+}
+
+JNIEXPORT jobjectArray JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_achievementsBuildAwardRequest(
+    JNIEnv* env,
+    jclass obj,
+    jstring user,
+    jstring token,
+    jint achievementId,
+    jstring hash,
+    jint seconds
+) {
+    JniString u(env, user);
+    JniString t(env, token);
+    JniString h(env, hash);
+    std::string url, post;
+    if (!Achievements::buildAwardRequest(u.stdString(), t.stdString(), (uint32_t) achievementId, h.stdString(), (uint32_t) seconds, url, post)) {
+        return nullptr;
+    }
+    jclass stringClass = env->FindClass("java/lang/String");
+    jobjectArray out = env->NewObjectArray(2, stringClass, nullptr);
+    jstring urlString = env->NewStringUTF(url.c_str());
+    jstring postString = env->NewStringUTF(post.c_str());
+    env->SetObjectArrayElement(out, 0, urlString);
+    env->SetObjectArrayElement(out, 1, postString);
+    env->DeleteLocalRef(urlString); env->DeleteLocalRef(postString); env->DeleteLocalRef(stringClass);
+    return out;
+}
+
 JNIEXPORT jboolean JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_unserializeState(
     JNIEnv* env,
     jclass obj,

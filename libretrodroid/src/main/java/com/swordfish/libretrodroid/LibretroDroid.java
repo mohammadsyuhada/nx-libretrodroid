@@ -185,4 +185,8 @@ public class LibretroDroid {
     public static native void achievementsLoadGame(String hash, int consoleId);
     public static native void achievementsUnloadGame();
     public static native void achievementsServerResponse(int requestId, int httpStatus, String body);
+    public static native AchievementInfo[] achievementsList();
+    public static native int[] achievementsSummary();
+    /** {url, postData} for a softcore award of [achievementId], signed by rcheevos; null when the parameters are rejected. */
+    public static native String[] achievementsBuildAwardRequest(String user, String token, int achievementId, String gameHash, int secondsSinceUnlock);
 }

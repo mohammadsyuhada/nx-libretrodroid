@@ -47,6 +47,7 @@
 #include "renderers/es2/imagerendereres2.h"
 #include "renderers/es3/imagerendereres3.h"
 #include "utils/rect.h"
+#include "achievements/achievements.h"
 
 namespace libretrodroid {
 
@@ -136,6 +137,8 @@ public:
     void achievementsLogin(const std::string& user, const std::string& token);
     void achievementsLoadGame(const std::string& hash, uint32_t consoleId);
     void achievementsUnloadGame();
+    std::vector<AchievementInfo> achievementsList();
+    AchievementSummary achievementsSummary();
 
     void setAudioEnabled(bool enabled);
 
