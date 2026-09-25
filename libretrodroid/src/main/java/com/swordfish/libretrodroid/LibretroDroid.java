@@ -189,4 +189,6 @@ public class LibretroDroid {
     public static native int[] achievementsSummary();
     /** {url, postData} for a softcore award of [achievementId], signed by rcheevos; null when the parameters are rejected. */
     public static native String[] achievementsBuildAwardRequest(String user, String token, int achievementId, String gameHash, int secondsSinceUnlock);
+    /** md5 of the game for RetroAchievements, or null. [files] as loadGameFromVirtualFiles; the fds are closed by the call. */
+    public static native String achievementsHash(int consoleId, List<DetachedVirtualFile> files);
 }

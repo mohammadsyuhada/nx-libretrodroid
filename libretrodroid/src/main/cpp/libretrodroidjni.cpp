@@ -46,6 +46,7 @@
 #include "renderers/es3/imagerendereres3.h"
 #include "utils/jnistring.h"
 #include "achievements/achievements.h"
+#include "achievements/achievementshash.h"
 
 namespace libretrodroid {
 
@@ -371,6 +372,25 @@ JNIEXPORT jobjectArray JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_ac
     env->SetObjectArrayElement(out, 1, postString);
     env->DeleteLocalRef(urlString); env->DeleteLocalRef(postString); env->DeleteLocalRef(stringClass);
     return out;
+}
+
+JNIEXPORT jstring JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_achievementsHash(
+    JNIEnv* env,
+    jclass obj,
+    jint consoleId,
+    jobject fileList
+) {
+    jclass dvf = env->FindClass("com/swordfish/libretrodroid/DetachedVirtualFile");
+    jmethodID getPath = env->GetMethodID(dvf, "getVirtualPath", "()Ljava/lang/String;");
+    jmethodID getFd = env->GetMethodID(dvf, "getFileDescriptor", "()I");
+    std::vector<std::pair<std::string, int>> files;
+    JavaUtils::forEachOnJavaIterable(env, fileList, [&](jobject item) {
+        JniString path(env, (jstring) env->CallObjectMethod(item, getPath));
+        files.emplace_back(path.stdString(), (int) env->CallIntMethod(item, getFd));
+    });
+    env->DeleteLocalRef(dvf);
+    std::string hash = AchievementsHash::hash((uint32_t) consoleId, std::move(files));
+    return hash.empty() ? nullptr : env->NewStringUTF(hash.c_str());
 }
 
 JNIEXPORT jboolean JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_unserializeState(

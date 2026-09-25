@@ -2,6 +2,7 @@ package com.swordfish.libretrodroid.spike
 
 import android.net.Uri
 import android.os.Bundle
+import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import android.util.Log
 import android.view.Gravity
@@ -20,6 +21,7 @@ import androidx.lifecycle.lifecycleScope
 import com.android.libretrodroid.R
 import com.swordfish.libretrodroid.GLRetroView
 import com.swordfish.libretrodroid.GLRetroViewData
+import com.swordfish.libretrodroid.LibretroAchievements
 import com.swordfish.libretrodroid.ShaderConfig
 import com.swordfish.libretrodroid.Variable
 import com.swordfish.libretrodroid.VirtualFile
@@ -219,6 +221,22 @@ class SpikeGameActivity : AppCompatActivity() {
                 vf != null -> gameVirtualFiles = listOf(vf)
             }
         }
+
+        // Smoke for LibretroAchievements.hash: launch with --ei ra_console <rcheevos console id>.
+        runCatching {
+            val console = intent.getIntExtra("ra_console", 0)
+            val opened = if (data.gameVirtualFiles.isEmpty()) {
+                val file = File(data.gameFilePath!!)
+                ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+            } else null
+            try {
+                val files = opened?.let { listOf(VirtualFile("/rom/" + File(data.gameFilePath!!).name, it)) }
+                    ?: data.gameVirtualFiles
+                Log.i("Spike", "RA hash (console $console): " + LibretroAchievements.hash(console, files))
+            } finally {
+                opened?.close()
+            }
+        }.onFailure { Log.w("Spike", "RA hash failed", it) }
 
         retroView = GLRetroView(this, data)
         lifecycle.addObserver(retroView)

@@ -124,6 +124,10 @@ add_library(libretrodroid SHARED
         microphone/microphoneinterface.cpp
         achievements/achievements.h
         achievements/achievements.cpp
+        achievements/achievementshash.h
+        achievements/achievementshash.cpp
+        achievements/chdreader.h
+        achievements/chdreader.cpp
         ${RCHEEVOS_SOURCES}
         ${LIBRETRO_COMMON}
 )

@@ -1,4 +1,5 @@
 #include "achievements.h"
+#include "achievementshash.h"
 
 #include <cstring>
 #include "../log.h"
@@ -19,6 +20,7 @@ void Achievements::enable() {
     rc_client_enable_logging(client, RC_CLIENT_LOG_LEVEL_INFO, logMessage);
     rc_client_set_event_handler(client, eventHandler);
     rc_client_set_hardcore_enabled(client, 0);   // softcore only: this frontend is not RA-approved for hardcore
+    rc_client_set_hash_callbacks(client, AchievementsHash::callbacks());
     LOGI("achievements enabled (rcheevos %s)", RCHEEVOS_VERSION_STRING);
 }
 
