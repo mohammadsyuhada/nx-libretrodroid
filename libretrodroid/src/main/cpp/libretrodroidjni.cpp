@@ -273,7 +273,7 @@ JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_achievemen
     jclass obj,
     jboolean enabled
 ) {
-    if (enabled) Achievements::getInstance().enable(); else Achievements::getInstance().disable();
+    LibretroDroid::getInstance().achievementsEnable(enabled);
 }
 
 JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_achievementsLogin(
@@ -284,7 +284,7 @@ JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_achievemen
 ) {
     JniString u(env, user);
     JniString t(env, token);
-    Achievements::getInstance().login(u.stdString(), t.stdString());
+    LibretroDroid::getInstance().achievementsLogin(u.stdString(), t.stdString());
 }
 
 JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_achievementsLoadGame(

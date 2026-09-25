@@ -434,6 +434,7 @@ void LibretroDroid::destroy() {
     }
 
     Achievements::getInstance().unloadGame();
+    Achievements::getInstance().disable();   // under coreLock: no later step() can touch a client of a destroyed view
     Achievements::getInstance().setCoreMemoryAccessors(nullptr, nullptr);
 
     core->retro_unload_game();
@@ -696,6 +697,16 @@ void LibretroDroid::afterGameLoad() {
     geometryAspect = defaultAspectRatio;
 
     Achievements::getInstance().setCoreMemoryAccessors(core->retro_get_memory_size, core->retro_get_memory_data);
+}
+
+void LibretroDroid::achievementsEnable(bool enabled) {
+    std::lock_guard<std::mutex> lock(coreLock);
+    if (enabled) Achievements::getInstance().enable(); else Achievements::getInstance().disable();
+}
+
+void LibretroDroid::achievementsLogin(const std::string& user, const std::string& token) {
+    std::lock_guard<std::mutex> lock(coreLock);
+    Achievements::getInstance().login(user, token);
 }
 
 void LibretroDroid::achievementsLoadGame(const std::string& hash, uint32_t consoleId) {
