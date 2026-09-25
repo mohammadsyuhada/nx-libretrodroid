@@ -31,6 +31,7 @@
 #include "environment.h"
 #include "vfs/vfs.h"
 #include "microphone/microphoneinterface.h"
+#include "achievements/achievements.h"
 
 void Environment::initialize(
     const std::string &requiredSystemDirectory,
@@ -587,6 +588,11 @@ bool Environment::handle_callback_environment(unsigned cmd, void *data) {
         case RETRO_ENVIRONMENT_GET_MICROPHONE_INTERFACE:
             LOGD("Called RETRO_ENVIRONMENT_GET_MICROPHONE_INTERFACE");
             return environment_handle_get_microphone_interface(static_cast<struct retro_microphone_interface*>(data));
+
+        case RETRO_ENVIRONMENT_SET_MEMORY_MAPS:
+            LOGD("Called RETRO_ENVIRONMENT_SET_MEMORY_MAPS");
+            libretrodroid::Achievements::getInstance().setMemoryMap(static_cast<const struct retro_memory_map*>(data));
+            return true;
 
         default:
             LOGD("callback environment has been called: %u", cmd);

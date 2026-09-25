@@ -44,8 +44,7 @@
 #include "utils/rect.h"
 #include "errorcodes.h"
 #include "vfs/vfs.h"
-
-namespace libretrodroid { const char* achievementsRuntimeVersion(); }
+#include "achievements/achievements.h"
 
 namespace libretrodroid {
 
@@ -275,13 +274,14 @@ void LibretroDroid::create(
     const std::string& language
 ) {
     LOGD("Performing libretrodroid create");
-    LOGI("rcheevos %s", achievementsRuntimeVersion());
 
     resetGlobalVariables();
 
     Environment::getInstance().initialize(systemDir, savesDir, &callback_get_current_framebuffer);
     // A failed load never reaches destroy(); drop its VFS files too.
     VFS::getInstance().deinitialize();
+    // Nor its memory map, whose descriptors point into the previous (now unloaded) core.
+    Achievements::getInstance().setMemoryMap(nullptr);
     Environment::getInstance().setLanguage(language);
     Environment::getInstance().setEnableVirtualFileSystem(enableVirtualFileSystem);
     Environment::getInstance().setEnableMicrophone(enableMicrophone);
@@ -433,6 +433,9 @@ void LibretroDroid::destroy() {
         Environment::getInstance().getHwContextDestroy()();
     }
 
+    Achievements::getInstance().unloadGame();
+    Achievements::getInstance().setCoreMemoryAccessors(nullptr, nullptr);
+
     core->retro_unload_game();
     core->retro_deinit();
 
@@ -479,8 +482,12 @@ void LibretroDroid::step() {
         frames = std::min(requestedFrames, 2u);
     }
 
-    for (size_t i = 0; i < frames * speed; i++)
+    auto& achievements = Achievements::getInstance();
+    for (size_t i = 0; i < frames * speed; i++) {
         core->retro_run();
+        if (achievements.isEnabled()) achievements.onFrame(false);
+    }
+    if (speed == 0 && achievements.isEnabled()) achievements.onFrame(true);   // menu open: keep the session alive
 
     if (video) {
         if (speed == 0) {
@@ -687,6 +694,18 @@ void LibretroDroid::afterGameLoad() {
     geometryWidth = (float) system_av_info.geometry.base_width;
     geometryHeight = (float) system_av_info.geometry.base_height;
     geometryAspect = defaultAspectRatio;
+
+    Achievements::getInstance().setCoreMemoryAccessors(core->retro_get_memory_size, core->retro_get_memory_data);
+}
+
+void LibretroDroid::achievementsLoadGame(const std::string& hash, uint32_t consoleId) {
+    std::lock_guard<std::mutex> lock(coreLock);
+    Achievements::getInstance().loadGame(hash, consoleId);
+}
+
+void LibretroDroid::achievementsUnloadGame() {
+    std::lock_guard<std::mutex> lock(coreLock);
+    Achievements::getInstance().unloadGame();
 }
 
 float LibretroDroid::findDefaultAspectRatio(const retro_system_av_info& system_av_info) {

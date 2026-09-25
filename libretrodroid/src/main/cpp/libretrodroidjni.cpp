@@ -45,6 +45,7 @@
 #include "renderers/es2/imagerendereres2.h"
 #include "renderers/es3/imagerendereres3.h"
 #include "utils/jnistring.h"
+#include "achievements/achievements.h"
 
 namespace libretrodroid {
 
@@ -265,6 +266,53 @@ JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_setControl
     jint type
 ) {
     LibretroDroid::getInstance().setControllerType(port, type);
+}
+
+JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_achievementsEnable(
+    JNIEnv* env,
+    jclass obj,
+    jboolean enabled
+) {
+    if (enabled) Achievements::getInstance().enable(); else Achievements::getInstance().disable();
+}
+
+JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_achievementsLogin(
+    JNIEnv* env,
+    jclass obj,
+    jstring user,
+    jstring token
+) {
+    JniString u(env, user);
+    JniString t(env, token);
+    Achievements::getInstance().login(u.stdString(), t.stdString());
+}
+
+JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_achievementsLoadGame(
+    JNIEnv* env,
+    jclass obj,
+    jstring hash,
+    jint consoleId
+) {
+    JniString h(env, hash);
+    LibretroDroid::getInstance().achievementsLoadGame(h.stdString(), (uint32_t) consoleId);
+}
+
+JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_achievementsUnloadGame(
+    JNIEnv* env,
+    jclass obj
+) {
+    LibretroDroid::getInstance().achievementsUnloadGame();
+}
+
+JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_achievementsServerResponse(
+    JNIEnv* env,
+    jclass obj,
+    jint requestId,
+    jint status,
+    jstring body
+) {
+    JniString b(env, body);
+    Achievements::getInstance().serverResponse((uint32_t) requestId, (int) status, b.stdString());
 }
 
 JNIEXPORT jboolean JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_unserializeState(
@@ -631,6 +679,29 @@ JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_step(
     jobject glRetroView
 ) {
     LibretroDroid::getInstance().step();
+
+    auto& achievements = Achievements::getInstance();
+    if (achievements.isEnabled()) {
+        auto calls = achievements.takeServerCalls();
+        auto events = achievements.takeEvents();
+        if (!calls.empty() || !events.empty()) {
+            jclass cls = env->GetObjectClass(glRetroView);
+            jmethodID sendCall = env->GetMethodID(cls, "sendAchievementServerCall", "(ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
+            jmethodID sendEvent = env->GetMethodID(cls, "sendAchievementEvent", "(IILjava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;FLjava/lang/String;)V");
+            for (auto& c : calls) {
+                jstring url = env->NewStringUTF(c.url.c_str()), post = env->NewStringUTF(c.postData.c_str()), type = env->NewStringUTF(c.contentType.c_str());
+                env->CallVoidMethod(glRetroView, sendCall, (jint) c.requestId, url, post, type);
+                env->DeleteLocalRef(url); env->DeleteLocalRef(post); env->DeleteLocalRef(type);
+            }
+            for (auto& e : events) {
+                jstring title = env->NewStringUTF(e.title.c_str()), desc = env->NewStringUTF(e.description.c_str()), badge = env->NewStringUTF(e.badge.c_str()),
+                        progress = env->NewStringUTF(e.progress.c_str()), extra = env->NewStringUTF(e.extra.c_str());
+                env->CallVoidMethod(glRetroView, sendEvent, (jint) e.type, (jint) e.id, title, desc, badge, (jint) e.points, progress, (jfloat) e.percent, extra);
+                env->DeleteLocalRef(title); env->DeleteLocalRef(desc); env->DeleteLocalRef(badge); env->DeleteLocalRef(progress); env->DeleteLocalRef(extra);
+            }
+            env->DeleteLocalRef(cls);
+        }
+    }
 
     if (LibretroDroid::getInstance().requiresVideoRefresh()) {
         LibretroDroid::getInstance().clearRequiresVideoRefresh();

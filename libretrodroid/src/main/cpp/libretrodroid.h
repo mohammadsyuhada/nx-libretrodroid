@@ -131,6 +131,10 @@ public:
 
     void setFrameSpeed(unsigned int speed);
 
+    // RetroAchievements: taken under the core lock so they never race the run loop's onFrame().
+    void achievementsLoadGame(const std::string& hash, uint32_t consoleId);
+    void achievementsUnloadGame();
+
     void setAudioEnabled(bool enabled);
 
     void setShaderConfig(ShaderManager::Config shaderConfig);

@@ -161,4 +161,28 @@ public class LibretroDroid {
 
     public static native Controller[][] getControllers();
     public static native void setControllerType(int port, int type);
+
+    // RetroAchievements (rcheevos rc_client in the runner; HTTP and persistence belong to the host).
+    public static final int RA_EVENT_ACHIEVEMENT_TRIGGERED = 1;
+    public static final int RA_EVENT_CHALLENGE_SHOW = 5;
+    public static final int RA_EVENT_CHALLENGE_HIDE = 6;
+    public static final int RA_EVENT_PROGRESS_SHOW = 7;
+    public static final int RA_EVENT_PROGRESS_HIDE = 8;
+    public static final int RA_EVENT_PROGRESS_UPDATE = 9;
+    public static final int RA_EVENT_RESET = 14;
+    public static final int RA_EVENT_GAME_COMPLETED = 15;
+    public static final int RA_EVENT_SERVER_ERROR = 16;
+    public static final int RA_EVENT_DISCONNECTED = 17;
+    public static final int RA_EVENT_RECONNECTED = 18;
+    public static final int RA_EVENT_LOGIN_OK = 100;
+    public static final int RA_EVENT_LOGIN_FAILED = 101;
+    public static final int RA_EVENT_GAME_LOADED = 102;
+    public static final int RA_EVENT_GAME_UNKNOWN = 103;
+    public static final int RA_EVENT_GAME_LOAD_FAILED = 104;
+
+    public static native void achievementsEnable(boolean enabled);
+    public static native void achievementsLogin(String user, String token);
+    public static native void achievementsLoadGame(String hash, int consoleId);
+    public static native void achievementsUnloadGame();
+    public static native void achievementsServerResponse(int requestId, int httpStatus, String body);
 }

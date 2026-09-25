@@ -124,6 +124,10 @@ class GLRetroView(
 
     private val rumbleEventsSubject = MutableSharedFlow<RumbleEvent>()
 
+    // Buffered so tryEmit from the GL thread never suspends; the host collects promptly.
+    private val achievementEvents = MutableSharedFlow<AchievementEvent>(extraBufferCapacity = 64)
+    private val achievementServerCalls = MutableSharedFlow<AchievementServerCall>(extraBufferCapacity = 64)
+
     private var lifecycle: Lifecycle? = null
 
     init {
@@ -312,6 +316,10 @@ class GLRetroView(
     fun getRumbleEvents(): Flow<RumbleEvent> {
         return rumbleEventsSubject
     }
+
+    fun getAchievementEvents(): Flow<AchievementEvent> = achievementEvents
+
+    fun getAchievementServerCalls(): Flow<AchievementServerCall> = achievementServerCalls
 
     fun getControllers(): Array<Array<Controller>> {
         return LibretroDroid.getControllers()
@@ -611,6 +619,21 @@ class GLRetroView(
         lifecycle?.coroutineScope?.launch {
             rumbleEventsSubject.emit(RumbleEvent(port, strengthWeak, strengthStrong))
         }
+    }
+
+    /** Called from the jni side (emulation thread) after each step. */
+    private fun sendAchievementEvent(
+        type: Int, id: Int, title: String, description: String, badge: String,
+        points: Int, progress: String, percent: Float, extra: String,
+    ) {
+        val event = AchievementEvent(type, id, title, description, badge, points, progress, percent, extra)
+        if (!achievementEvents.tryEmit(event)) Log.w(TAG_LOG, "achievement event dropped: $type")
+    }
+
+    /** Called from the jni side (emulation thread) after each step. */
+    private fun sendAchievementServerCall(requestId: Int, url: String, postData: String, contentType: String) {
+        val call = AchievementServerCall(requestId, url, postData, contentType)
+        if (!achievementServerCalls.tryEmit(call)) Log.e(TAG_LOG, "achievement server call dropped: $requestId")
     }
 
     private fun refreshAspectRatio() {
