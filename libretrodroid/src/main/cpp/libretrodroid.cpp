@@ -45,6 +45,8 @@
 #include "errorcodes.h"
 #include "vfs/vfs.h"
 
+namespace libretrodroid { const char* achievementsRuntimeVersion(); }
+
 namespace libretrodroid {
 
 uintptr_t LibretroDroid::callback_get_current_framebuffer() {
@@ -273,6 +275,7 @@ void LibretroDroid::create(
     const std::string& language
 ) {
     LOGD("Performing libretrodroid create");
+    LOGI("rcheevos %s", achievementsRuntimeVersion());
 
     resetGlobalVariables();
 

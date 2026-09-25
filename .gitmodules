@@ -5,3 +5,9 @@
 [submodule "libretrodroid/src/main/cpp/libretro/libretro-common"]
 	path = libretrodroid/src/main/cpp/libretro/libretro-common
 	url = https://github.com/libretro/libretro-common/
+[submodule "libretrodroid/src/main/cpp/rcheevos"]
+	path = libretrodroid/src/main/cpp/rcheevos
+	url = https://github.com/RetroAchievements/rcheevos.git
+[submodule "libretrodroid/src/main/cpp/libchdr"]
+	path = libretrodroid/src/main/cpp/libchdr
+	url = https://github.com/rtissera/libchdr.git

@@ -13,6 +13,40 @@ include_directories (${OBOE_DIR}/src)
 
 include_directories("libretro/libretro-common/include")
 
+# rcheevos (RetroAchievements runtime). No Lua; hashing enabled for rc_client.
+set (RCHEEVOS_DIR rcheevos)
+add_definitions("-DRC_DISABLE_LUA -DRC_CLIENT_SUPPORTS_HASH")
+include_directories (${RCHEEVOS_DIR}/include ${RCHEEVOS_DIR}/src)
+file (GLOB RCHEEVOS_RUNTIME ${RCHEEVOS_DIR}/src/rcheevos/*.c)
+set (RCHEEVOS_SOURCES
+        ${RCHEEVOS_DIR}/src/rc_client.c
+        ${RCHEEVOS_DIR}/src/rc_compat.c
+        ${RCHEEVOS_DIR}/src/rc_util.c
+        ${RCHEEVOS_DIR}/src/rc_version.c
+        ${RCHEEVOS_DIR}/src/rc_libretro.c
+        ${RCHEEVOS_RUNTIME}
+        ${RCHEEVOS_DIR}/src/rapi/rc_api_common.c
+        ${RCHEEVOS_DIR}/src/rapi/rc_api_editor.c
+        ${RCHEEVOS_DIR}/src/rapi/rc_api_info.c
+        ${RCHEEVOS_DIR}/src/rapi/rc_api_runtime.c
+        ${RCHEEVOS_DIR}/src/rapi/rc_api_user.c
+        ${RCHEEVOS_DIR}/src/rhash/aes.c
+        ${RCHEEVOS_DIR}/src/rhash/cdreader.c
+        ${RCHEEVOS_DIR}/src/rhash/hash.c
+        ${RCHEEVOS_DIR}/src/rhash/hash_disc.c
+        ${RCHEEVOS_DIR}/src/rhash/hash_encrypted.c
+        ${RCHEEVOS_DIR}/src/rhash/hash_rom.c
+        ${RCHEEVOS_DIR}/src/rhash/hash_zip.c
+        ${RCHEEVOS_DIR}/src/rhash/md5.c
+)
+
+# libchdr (CHD disc images for hashing). Static, bundled miniz/lzma/zstd, no tests, no shared lib.
+set (BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set (CHDR_WANT_TESTS OFF CACHE BOOL "" FORCE)
+set (INSTALL_STATIC_LIBS OFF CACHE BOOL "" FORCE)
+add_subdirectory (libchdr EXCLUDE_FROM_ALL)
+include_directories (libchdr/include)
+
 set (LIBRETRO_COMMON
         libretro/libretro-common/vfs/vfs_implementation.c
         libretro/libretro-common/string/stdstring.c
@@ -88,6 +122,8 @@ add_library(libretrodroid SHARED
         microphone/microphone.cpp
         microphone/microphoneinterface.h
         microphone/microphoneinterface.cpp
+        achievements/achievements_version.cpp
+        ${RCHEEVOS_SOURCES}
         ${LIBRETRO_COMMON}
 )
 
@@ -100,5 +136,6 @@ target_link_libraries(libretrodroid
                       log 
                       EGL
                       oboe
+                      chdr-static
                       GLESv3
 )
