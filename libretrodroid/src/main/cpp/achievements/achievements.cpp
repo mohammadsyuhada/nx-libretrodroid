@@ -217,6 +217,12 @@ void Achievements::loadGame(const std::string& hash, uint32_t console) {
 void Achievements::loadGameCallback(int result, const char* errorMessage, rc_client_t* client, void*) {
     auto& self = getInstance();
     AchievementEvent e;
+    if (result == RC_NO_GAME_LOADED) {   // the server does not know this hash
+        e.type = RA_EVENT_GAME_UNKNOWN;
+        e.extra = errorMessage ? errorMessage : "";
+        self.pushEvent(std::move(e));
+        return;
+    }
     if (result != RC_OK) {
         e.type = RA_EVENT_GAME_LOAD_FAILED;
         e.extra = errorMessage ? errorMessage : "";

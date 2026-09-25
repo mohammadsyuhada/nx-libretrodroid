@@ -35,8 +35,10 @@ import androidx.lifecycle.coroutineScope
 import com.swordfish.libretrodroid.KtUtils.awaitUninterruptibly
 import com.swordfish.libretrodroid.gamepad.GamepadsManager
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import java.util.Locale
 import java.util.concurrent.CountDownLatch
@@ -126,7 +128,8 @@ class GLRetroView(
 
     // Buffered so tryEmit from the GL thread never suspends; the host collects promptly.
     private val achievementEvents = MutableSharedFlow<AchievementEvent>(extraBufferCapacity = 64)
-    private val achievementServerCalls = MutableSharedFlow<AchievementServerCall>(extraBufferCapacity = 64)
+    // Unlimited channel: a server call must never be dropped, or rc_client waits for its answer forever.
+    private val achievementServerCalls = Channel<AchievementServerCall>(Channel.UNLIMITED)
 
     private var lifecycle: Lifecycle? = null
 
@@ -317,9 +320,17 @@ class GLRetroView(
         return rumbleEventsSubject
     }
 
+    /**
+     * rc_client events. Not buffered for late subscribers: events emitted before collection starts are lost,
+     * so subscribe before calling `LibretroDroid.achievementsLogin`.
+     */
     fun getAchievementEvents(): Flow<AchievementEvent> = achievementEvents
 
-    fun getAchievementServerCalls(): Flow<AchievementServerCall> = achievementServerCalls
+    /**
+     * HTTP requests rc_client wants sent. Buffered until collected (single consumer); every call must be answered
+     * with `LibretroDroid.achievementsServerResponse(requestId, …)` or rc_client keeps waiting for it.
+     */
+    fun getAchievementServerCalls(): Flow<AchievementServerCall> = achievementServerCalls.receiveAsFlow()
 
     fun getControllers(): Array<Array<Controller>> {
         return LibretroDroid.getControllers()
@@ -633,7 +644,7 @@ class GLRetroView(
     /** Called from the jni side (emulation thread) after each step. */
     private fun sendAchievementServerCall(requestId: Int, url: String, postData: String, contentType: String) {
         val call = AchievementServerCall(requestId, url, postData, contentType)
-        if (!achievementServerCalls.tryEmit(call)) Log.e(TAG_LOG, "achievement server call dropped: $requestId")
+        if (achievementServerCalls.trySend(call).isFailure) Log.e(TAG_LOG, "achievement server call dropped: $requestId")
     }
 
     private fun refreshAspectRatio() {
