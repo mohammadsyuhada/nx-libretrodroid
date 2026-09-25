@@ -277,6 +277,8 @@ void LibretroDroid::create(
     resetGlobalVariables();
 
     Environment::getInstance().initialize(systemDir, savesDir, &callback_get_current_framebuffer);
+    // A failed load never reaches destroy(); drop its VFS files too.
+    VFS::getInstance().deinitialize();
     Environment::getInstance().setLanguage(language);
     Environment::getInstance().setEnableVirtualFileSystem(enableVirtualFileSystem);
     Environment::getInstance().setEnableMicrophone(enableMicrophone);

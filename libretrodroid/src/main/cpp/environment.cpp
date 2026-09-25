@@ -37,6 +37,9 @@ void Environment::initialize(
     const std::string &requiredSavesDirectory,
     retro_hw_get_current_framebuffer_t required_callback_get_current_framebuffer
 ) {
+    // A failed load never reaches destroy() (the view's lifecycle observer is only registered after a successful load),
+    // so the previous core's callbacks and options would otherwise survive into the next create() after its .so is dlclosed.
+    deinitialize();
     callback_get_current_framebuffer = required_callback_get_current_framebuffer;
     systemDirectory = requiredSystemDirectory;
     savesDirectory = requiredSavesDirectory;
@@ -64,6 +67,7 @@ void Environment::deinitialize() {
     useStencil = false;
     bottomLeftOrigin = false;
     screenRotation = 0;
+    screenRotationUpdated = false;
 
     gameGeometryUpdated = false;
     gameGeometryWidth = 0;
@@ -71,6 +75,10 @@ void Environment::deinitialize() {
     gameGeometryAspectRatio = -1.0f;
 
     rumbleStates.fill(libretrodroid::RumbleState {});
+
+    controllers.clear();
+    useVirtualFileSystem = false;
+    enableMicrophone = false;
 }
 
 void Environment::updateVariable(const std::string& key, const std::string& value) {
