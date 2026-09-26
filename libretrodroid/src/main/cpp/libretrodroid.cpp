@@ -275,10 +275,13 @@ void LibretroDroid::create(
 ) {
     LOGD("Performing libretrodroid create");
 
+    // Before resetGlobalVariables(), which would otherwise dlclose a leftover core without retro_deinit().
+    releaseCore();
+
     resetGlobalVariables();
 
     Environment::getInstance().initialize(systemDir, savesDir, &callback_get_current_framebuffer);
-    // A failed load never reaches destroy(); drop its VFS files too.
+    // A failed load never reaches destroy(); releaseCore() above deinitialised its core, drop its VFS files too.
     VFS::getInstance().deinitialize();
     // Nor its memory map, whose descriptors point into the previous (now unloaded) core.
     Achievements::getInstance().setMemoryMap(nullptr);
@@ -313,6 +316,7 @@ void LibretroDroid::create(
     });
 
     core->retro_init();
+    coreInitialized = true;
 
     preferLowLatencyAudio = lowLatencyAudio;
 
@@ -424,6 +428,17 @@ void LibretroDroid::loadGameFromVirtualFiles(std::vector<VFSFile> virtualFiles) 
     afterGameLoad();
 }
 
+void LibretroDroid::releaseCore() {
+    if (core == nullptr) return;
+
+    if (gameLoaded) core->retro_unload_game();
+    if (coreInitialized) core->retro_deinit();
+
+    core = nullptr;
+    coreInitialized = false;
+    gameLoaded = false;
+}
+
 void LibretroDroid::destroy() {
     std::lock_guard<std::mutex> lock(coreLock);
 
@@ -437,11 +452,9 @@ void LibretroDroid::destroy() {
     Achievements::getInstance().disable();   // under coreLock: no later step() can touch a client of a destroyed view
     Achievements::getInstance().setCoreMemoryAccessors(nullptr, nullptr);
 
-    core->retro_unload_game();
-    core->retro_deinit();
+    releaseCore();
 
     video = nullptr;
-    core = nullptr;
     rumble = nullptr;
     fpsSync = nullptr;
     audio = nullptr;
@@ -676,6 +689,8 @@ void LibretroDroid::clearRequiresVideoRefresh() {
 }
 
 void LibretroDroid::afterGameLoad() {
+    gameLoaded = true;
+
     struct retro_system_av_info system_av_info {};
     core->retro_get_system_av_info(&system_av_info);
 

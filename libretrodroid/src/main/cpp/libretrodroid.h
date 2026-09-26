@@ -172,6 +172,7 @@ private:
     void updateAudioSampleRateMultiplier();
     float findDefaultAspectRatio(const retro_system_av_info &system_av_info);
     void afterGameLoad();
+    void releaseCore();
 
 protected:
     static void callback_hw_video_refresh(const void *data, unsigned width, unsigned height, size_t pitch);
@@ -218,6 +219,8 @@ private:
     std::mutex coreLock;
 
     std::unique_ptr<Core> core;
+    bool coreInitialized = false;
+    bool gameLoaded = false;
     std::unique_ptr<Audio> audio;
     std::unique_ptr<Video> video;
     std::unique_ptr<FPSSync> fpsSync;
