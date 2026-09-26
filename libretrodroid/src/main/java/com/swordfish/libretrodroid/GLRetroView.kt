@@ -42,6 +42,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import java.util.Locale
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 import kotlin.properties.Delegates
@@ -120,6 +121,10 @@ class GLRetroView(
     private var isGameLoaded = false
     private var isEmulationReady = false
     private var isAborted = false
+
+    // Mirrors the GLThread's lifetime: GLSurfaceView exits it on detach and recreates it on re-attach.
+    @Volatile
+    private var emulationThreadGone = false
 
     private val retroGLEventsSubject = MutableSharedFlow<GLRetroEvents>(1)
     private val retroGLIssuesErrors = MutableSharedFlow<Int>(1)
@@ -244,6 +249,16 @@ class GLRetroView(
 
     fun sendMotionEvent(source: Int, xAxis: Float, yAxis: Float, port: Int = 0) {
         queueEvent { LibretroDroid.onMotionEvent(port, source, xAxis, yAxis) }
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        emulationThreadGone = false
+    }
+
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        emulationThreadGone = true
     }
 
     override fun onTouchEvent(event: MotionEvent?): Boolean {
@@ -528,9 +543,20 @@ class GLRetroView(
         }
     }
 
+    /**
+     * Runs [block] on the GL (emulation) thread and waits for its result.
+     *
+     * @throws IllegalStateException if the view is detached, since its GL thread has exited and would never run
+     * [block], or if the GL thread does not run [block] within [EMULATION_THREAD_TIMEOUT_SECONDS] seconds (queued
+     * events also run while paused, so only a dead or wedged GL thread reaches the timeout).
+     */
     private fun <T> runOnEmulationThread(useEmulationThread: Boolean, block: () -> T): T {
         if (!useEmulationThread || Thread.currentThread().name.startsWith("GLThread")) {
             return block()
+        }
+
+        if (emulationThreadGone) {
+            throw IllegalStateException("GLRetroView is detached; the emulation thread has exited")
         }
 
         val latch = CountDownLatch(1)
@@ -540,7 +566,11 @@ class GLRetroView(
             latch.countDown()
         }
 
-        latch.awaitUninterruptibly()
+        if (!latch.awaitUninterruptibly(EMULATION_THREAD_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+            throw IllegalStateException(
+                "emulation thread did not run the request within $EMULATION_THREAD_TIMEOUT_SECONDS s"
+            )
+        }
         return result!!
     }
 
@@ -660,6 +690,7 @@ class GLRetroView(
 
     companion object {
         private val TAG_LOG = GLRetroView::class.java.simpleName
+        private const val EMULATION_THREAD_TIMEOUT_SECONDS = 10L
 
         const val MOTION_SOURCE_DPAD = LibretroDroid.MOTION_SOURCE_DPAD
         const val MOTION_SOURCE_ANALOG_LEFT = LibretroDroid.MOTION_SOURCE_ANALOG_LEFT

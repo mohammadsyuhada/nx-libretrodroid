@@ -20,6 +20,7 @@ package com.swordfish.libretrodroid
 import android.os.Handler
 import android.os.Looper
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 object KtUtils {
     fun runOnUIThread(runnable: () -> Unit) {
@@ -49,6 +50,18 @@ object KtUtils {
                 }
             }
         } finally {
+        }
+    }
+
+    /** Like [awaitUninterruptibly] but gives up after [timeout]; returns false if the latch did not reach zero. */
+    fun CountDownLatch.awaitUninterruptibly(timeout: Long, unit: TimeUnit): Boolean {
+        val deadline = System.nanoTime() + unit.toNanos(timeout)
+        while (true) {
+            try {
+                return await(deadline - System.nanoTime(), TimeUnit.NANOSECONDS)
+            } catch (e: InterruptedException) {
+
+            }
         }
     }
 }
