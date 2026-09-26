@@ -257,8 +257,8 @@ class GLRetroView(
     }
 
     override fun onDetachedFromWindow() {
-        super.onDetachedFromWindow()
         emulationThreadGone = true
+        super.onDetachedFromWindow()
     }
 
     override fun onTouchEvent(event: MotionEvent?): Boolean {
@@ -548,7 +548,8 @@ class GLRetroView(
      *
      * @throws IllegalStateException if the view is detached, since its GL thread has exited and would never run
      * [block], or if the GL thread does not run [block] within [EMULATION_THREAD_TIMEOUT_SECONDS] seconds (queued
-     * events also run while paused, so only a dead or wedged GL thread reaches the timeout).
+     * events also run while paused, so only a dead or wedged GL thread reaches the timeout). A request that timed out
+     * is not cancelled and may still run if the GL thread recovers, so its effect can land after the caller gave up.
      */
     private fun <T> runOnEmulationThread(useEmulationThread: Boolean, block: () -> T): T {
         if (!useEmulationThread || Thread.currentThread().name.startsWith("GLThread")) {
