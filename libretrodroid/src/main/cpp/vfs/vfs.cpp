@@ -18,6 +18,7 @@
 #include "vfs.h"
 
 #include <unistd.h>
+#include <sys/stat.h>
 #include <optional>
 
 #include "vfs/vfs_implementation.h"
@@ -91,8 +92,51 @@ int64_t VFS::truncate(struct retro_vfs_file_handle* stream, int64_t length) {
     return retro_vfs_file_truncate_impl(stream, length);
 }
 
+int VFS::stat(const char *path, int32_t *size) {
+    LOGV("VFS Calling stat: %s", path);
+    auto result = VFS::getInstance().virtualStat(path, size);
+    if (result.has_value()) {
+        return result.value();
+    }
+
+    return retro_vfs_stat_impl(path, size);
+}
+
+int VFS::mkdir(const char *dir) {
+    LOGV("VFS Calling mkdir: %s", dir);
+    return retro_vfs_mkdir_impl(dir);
+}
+
+// Directory listing goes to the real filesystem only. Virtual files have no real parent
+// directory, so listing "/rom" (or wherever the virtual path points) fails or omits them,
+// the same as RetroArch's implementation would for a path that isn't on disk.
+struct retro_vfs_dir_handle* VFS::opendir(const char *dir, bool include_hidden) {
+    LOGV("VFS Calling opendir: %s", dir);
+    return retro_vfs_opendir_impl(dir, include_hidden);
+}
+
+bool VFS::readdir(struct retro_vfs_dir_handle *dirstream) {
+    LOGV("VFS Calling readdir");
+    return retro_vfs_readdir_impl(dirstream);
+}
+
+const char* VFS::direntGetName(struct retro_vfs_dir_handle *dirstream) {
+    LOGV("VFS Calling dirent_get_name");
+    return retro_vfs_dirent_get_name_impl(dirstream);
+}
+
+bool VFS::direntIsDir(struct retro_vfs_dir_handle *dirstream) {
+    LOGV("VFS Calling dirent_is_dir");
+    return retro_vfs_dirent_is_dir_impl(dirstream);
+}
+
+int VFS::closedir(struct retro_vfs_dir_handle *dirstream) {
+    LOGV("VFS Calling closedir");
+    return retro_vfs_closedir_impl(dirstream);
+}
+
 retro_vfs_interface * VFS::getInterface() {
-    return new retro_vfs_interface {
+    static retro_vfs_interface vfsInterface {
         /* Introduced in VFS API v1 */
         &VFS::path,
         &VFS::open,
@@ -107,8 +151,18 @@ retro_vfs_interface * VFS::getInterface() {
         &VFS::rename,
 
         /* Introduced in VFS API v2 */
-        &VFS::truncate
+        &VFS::truncate,
+
+        /* Introduced in VFS API v3 */
+        &VFS::stat,
+        &VFS::mkdir,
+        &VFS::opendir,
+        &VFS::readdir,
+        &VFS::direntGetName,
+        &VFS::direntIsDir,
+        &VFS::closedir
     };
+    return &vfsInterface;
 }
 
 void VFS::initialize(std::vector<VFSFile> files) {
@@ -154,6 +208,31 @@ struct retro_vfs_file_handle* VFS::virtualOpen(const char *path, unsigned int mo
     stream->scheme = VFS_SCHEME_NONE;
 
     return stream;
+}
+
+std::optional<int> VFS::virtualStat(const char *path, int32_t *size) {
+    if (path == nullptr) {
+        return std::nullopt;
+    }
+
+    VFSFile* virtualFile = findVirtualFile(path);
+
+    if (virtualFile == nullptr) {
+        return std::nullopt;
+    }
+
+    struct stat fileStat {};
+    if (fstat(virtualFile->getFD(), &fileStat) < 0) {
+        LOGE("VFS Cannot stat virtual file: %s", path);
+        return 0;
+    }
+
+    if (size != nullptr) {
+        *size = (int32_t) fileStat.st_size;
+    }
+
+    LOGV("VFS Virtual file stat: %s %lld", path, (long long) fileStat.st_size);
+    return RETRO_VFS_STAT_IS_VALID;
 }
 
 VFSFile* VFS::findVirtualFile(const char *path) {
