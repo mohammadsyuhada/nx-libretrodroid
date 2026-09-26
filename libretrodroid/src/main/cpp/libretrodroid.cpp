@@ -746,7 +746,8 @@ AchievementSummary LibretroDroid::achievementsSummary() {
 
 float LibretroDroid::findDefaultAspectRatio(const retro_system_av_info& system_av_info) {
     float result = system_av_info.geometry.aspect_ratio;
-    if (result < 0) {
+    // libretro: an aspect_ratio <= 0 means base_width / base_height (gearcoleco's default "1:1 PAR" reports 0).
+    if (result <= 0) {
         result =
             (float) system_av_info.geometry.base_width / (float) system_av_info.geometry.base_height;
     }
