@@ -1029,6 +1029,13 @@ JNIEXPORT jfloatArray JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_get
     return result;
 }
 
+JNIEXPORT jboolean JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_isHardwareRendered(
+    JNIEnv* env,
+    jclass obj
+) {
+    return LibretroDroid::getInstance().isHardwareRendered() ? JNI_TRUE : JNI_FALSE;
+}
+
 }
 
 }

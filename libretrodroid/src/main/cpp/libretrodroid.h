@@ -164,6 +164,10 @@ public:
     // Base width, base height and aspect ratio of the running game; zeros before it loads. Any thread.
     std::array<float, 3> getGameGeometry() const;
 
+    // True once the running core delivered a frame as RETRO_HW_FRAME_BUFFER_VALID (its own GL framebuffer); false
+    // before any frame and while frames are software. Any thread.
+    bool isHardwareRendered() const;
+
     void resetGlobalVariables();
 
     // Handle callbacks
@@ -211,6 +215,7 @@ private:
     std::atomic<float> geometryWidth { 0.0F };
     std::atomic<float> geometryHeight { 0.0F };
     std::atomic<float> geometryAspect { 0.0F };
+    std::atomic<bool> hardwareFrame { false };
 
     float screenRefreshRate = 60.0;
     int openglESVersion = 2;

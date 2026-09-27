@@ -127,6 +127,8 @@ public class LibretroDroid {
     public static native void setScreenRegions(float[] packed);
     public static native float[] getGameGeometry();
 
+    public static native boolean isHardwareRendered();
+
     public static native void setShaderChain(
         String[] sources, int[] filterLinear /* -1 unspecified, 0, 1 */, int[] wrap, int[] scaleTypeX, int[] scaleTypeY,
         float[] scaleX, float[] scaleY, int[] frameCountMod, String[] alias,

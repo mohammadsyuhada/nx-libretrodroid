@@ -403,6 +403,9 @@ class GLRetroView(
     /** `[baseWidth, baseHeight, aspectRatio]` of the running game; zeros before it loads. Safe from any thread. */
     fun getGameGeometry(): FloatArray = LibretroDroid.getGameGeometry()
 
+    /** True once the running core's frames come from its own GL framebuffer (a hardware-rendered core). Safe from any thread. */
+    fun isHardwareRendered(): Boolean = LibretroDroid.isHardwareRendered()
+
     fun updateVariables(vararg variables: Variable) {
         variables.forEach {
             LibretroDroid.updateVariable(it)

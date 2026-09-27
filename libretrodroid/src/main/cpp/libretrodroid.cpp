@@ -302,6 +302,7 @@ void LibretroDroid::create(
     geometryWidth = 0.0F;
     geometryHeight = 0.0F;
     geometryAspect = 0.0F;
+    hardwareFrame.store(false);
 
     core = std::make_unique<Core>(soFilePath);
 
@@ -617,6 +618,9 @@ void LibretroDroid::handleVideoRefresh(
     unsigned int height,
     size_t pitch
 ) {
+    // A duplicate frame (data == nullptr) says nothing about how the core renders.
+    if (data != nullptr) hardwareFrame.store(data == RETRO_HW_FRAME_BUFFER_VALID);
+
     if (video) {
         video->onNewFrame(data, width, height, pitch);
 
@@ -804,6 +808,10 @@ void LibretroDroid::setScreenRegions(std::vector<ScreenRegion> regions) {
 
 std::array<float, 3> LibretroDroid::getGameGeometry() const {
     return { geometryWidth.load(), geometryHeight.load(), geometryAspect.load() };
+}
+
+bool LibretroDroid::isHardwareRendered() const {
+    return hardwareFrame.load();
 }
 
 } //namespace libretrodroid
