@@ -90,6 +90,22 @@ class GLRetroView(
         queueEvent { LibretroDroid.setScreenOffset(x, y) }
     }
 
+    /**
+     * Parts of the core frame drawn at places in the view (a DS screen each); empty = the single picture. While set,
+     * [scaleMode] and [screenOffset] don't apply; dst is relative to [viewport]. Touches map through the topmost region
+     * ([ScreenRegions.mapTouch]). Main thread; applied on the GL thread, and re-applied after create().
+     */
+    var screenRegions: List<ScreenRegion> by Delegates.observable(emptyList()) { _, old, value ->
+        if (old == value) return@observable
+        val packed = ScreenRegions.pack(value)
+        queueEvent { LibretroDroid.setScreenRegions(packed) }
+    }
+
+    /** The core's pointer at ([x01], [y01]) in 0..1 of the core frame, pressed; or released when not [pressed]. */
+    fun sendPointer(x01: Float, y01: Float, pressed: Boolean) {
+        if (pressed) sendMotionEvent(MOTION_SOURCE_POINTER, x01, y01) else sendMotionEvent(MOTION_SOURCE_POINTER, -1f, -1f)
+    }
+
     /** A RetroArch GLSL chain drawn instead of [shader]; null = the built-in [shader]. Queued on the GL thread; survives create(). */
     var shaderChain: ShaderChainData? by Delegates.observable(null) { _, _, value ->
         shaderParameterOverrides.clear()
@@ -182,11 +198,13 @@ class GLRetroView(
         val mode = scaleMode.value
         val offsetX = screenOffset.x
         val offsetY = screenOffset.y
+        val regions = ScreenRegions.pack(screenRegions)
         val chain = shaderChain?.let { it.copy(params = it.params + shaderParameterOverrides) }
         queueEvent {
             LibretroDroid.setViewport(left, top, width, height)
             LibretroDroid.setScaleMode(mode)
             LibretroDroid.setScreenOffset(offsetX, offsetY)
+            LibretroDroid.setScreenRegions(regions)
             pushShaderChain(chain)
         }
     }
@@ -261,24 +279,47 @@ class GLRetroView(
         super.onDetachedFromWindow()
     }
 
+    // The finger that drives the pointer: the first one down; others are ignored until it lifts.
+    private var touchPointerId = MotionEvent.INVALID_POINTER_ID
+
     override fun onTouchEvent(event: MotionEvent?): Boolean {
-        val position = when (event?.actionMasked) {
-            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
-                normalizeTouchCoordinates(event.x, event.y)
+        event ?: return true
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                touchPointerId = event.getPointerId(0)
+                touchAt(event.getX(0), event.getY(0))
             }
-
-            MotionEvent.ACTION_UP -> {
-                TOUCH_EVENT_OUTSIDE
+            MotionEvent.ACTION_MOVE -> {
+                val index = event.findPointerIndex(touchPointerId)
+                if (index >= 0) touchAt(event.getX(index), event.getY(index))
             }
-
-            else -> null
+            MotionEvent.ACTION_POINTER_UP ->
+                if (event.getPointerId(event.actionIndex) == touchPointerId) touchReleased()
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> touchReleased()
         }
-
-        if (position != null) {
-            LibretroDroid.onTouchEvent(position.x, position.y)
-        }
-
         return true
+    }
+
+    private fun touchAt(x: Float, y: Float) {
+        val regions = screenRegions
+        if (regions.isEmpty()) {
+            val position = normalizeTouchCoordinates(x, y)
+            LibretroDroid.onTouchEvent(position.x, position.y)
+            return
+        }
+        if (width <= 0 || height <= 0) return
+        val rect = viewport
+        val point = ScreenRegions.mapTouch(regions, ScreenRect(rect.left, rect.top, rect.right, rect.bottom), x / width, y / height)
+        if (point != null) sendPointer(point.x, point.y, true) else sendPointer(0f, 0f, false)
+    }
+
+    private fun touchReleased() {
+        touchPointerId = MotionEvent.INVALID_POINTER_ID
+        if (screenRegions.isEmpty()) {
+            LibretroDroid.onTouchEvent(TOUCH_EVENT_OUTSIDE.x, TOUCH_EVENT_OUTSIDE.y)
+        } else {
+            sendPointer(0f, 0f, false)
+        }
     }
 
     private fun clamp(x: Float, min: Float, max: Float) = minOf(maxOf(x, min), max)
