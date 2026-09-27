@@ -391,6 +391,9 @@ bool Environment::environment_handle_get_vfs_interface(struct retro_vfs_interfac
         return false;
     }
 
+    LOGI("Serving VFS v%u (core asked for v%u)",
+         libretrodroid::VFS::SUPPORTED_VERSION,
+         vfsInterfaceInfo->required_interface_version);
     vfsInterfaceInfo->required_interface_version = libretrodroid::VFS::SUPPORTED_VERSION;
     vfsInterfaceInfo->iface = libretrodroid::VFS::getInterface();
     return true;

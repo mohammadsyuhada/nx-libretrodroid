@@ -20,12 +20,54 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <optional>
+#include <cstdint>
+#include <cstddef>
 
 #include "vfs/vfs_implementation.h"
 #include "../log.h"
 #include "../utils/utils.h"
 
 namespace libretrodroid {
+
+// struct retro_vfs_interface is all function pointers (v3 has 19), so upstream's v4 struct
+// places stat_64 at sizeof(v3 struct). If the submodule ever grows the struct (a libretro-common
+// bump bringing the real stat_64), the first assert fires: switch to the upstream member then.
+static_assert(sizeof(struct retro_vfs_interface) == 19 * sizeof(void*),
+              "retro_vfs_interface is no longer the v3 layout; use the upstream v4 member");
+static_assert(offsetof(nx_retro_vfs_interface_v4, v3) == 0,
+              "v4 interface must start with the v3 interface");
+static_assert(offsetof(nx_retro_vfs_interface_v4, stat_64) == sizeof(struct retro_vfs_interface),
+              "stat_64 must directly follow the v3 members, as in upstream's v4 struct");
+
+namespace {
+
+// Real-filesystem stat with a 64-bit size. Same flags as libretro-common's
+// retro_vfs_stat_impl (the "every other platform" branch): valid, directory, character special.
+int realStat64(const char *path, int64_t *size) {
+    if (path == nullptr || *path == '\0') {
+        return 0;
+    }
+
+    struct stat statBuf {};
+    if (::stat(path, &statBuf) < 0) {
+        return 0;
+    }
+
+    if (size != nullptr) {
+        *size = (int64_t) statBuf.st_size;
+    }
+
+    int result = RETRO_VFS_STAT_IS_VALID;
+    if (S_ISDIR(statBuf.st_mode)) {
+        result |= RETRO_VFS_STAT_IS_DIRECTORY;
+    }
+    if (S_ISCHR(statBuf.st_mode)) {
+        result |= RETRO_VFS_STAT_IS_CHARACTER_SPECIAL;
+    }
+    return result;
+}
+
+} // namespace
 
 const char *VFS::path(struct retro_vfs_file_handle* stream) {
     LOGV("VFS Calling path");
@@ -92,14 +134,31 @@ int64_t VFS::truncate(struct retro_vfs_file_handle* stream, int64_t length) {
     return retro_vfs_file_truncate_impl(stream, length);
 }
 
+// v3 stat shares the v4 path and saturates sizes of 2 GiB or more to INT32_MAX, matching upstream
+// libretro-common's retro_vfs_stat_impl (which wraps retro_vfs_stat_64_impl the same way), so a
+// caller never sees a wrapped negative size.
 int VFS::stat(const char *path, int32_t *size) {
     LOGV("VFS Calling stat: %s", path);
+    int64_t size64 = 0;
+    int result = statInternal(path, size != nullptr ? &size64 : nullptr);
+    if (size != nullptr) {
+        *size = size64 > (int64_t) INT32_MAX ? INT32_MAX : (int32_t) size64;
+    }
+    return result;
+}
+
+int VFS::stat64(const char *path, int64_t *size) {
+    LOGV("VFS Calling stat_64: %s", path);
+    return statInternal(path, size);
+}
+
+int VFS::statInternal(const char *path, int64_t *size) {
     auto result = VFS::getInstance().virtualStat(path, size);
     if (result.has_value()) {
         return result.value();
     }
 
-    return retro_vfs_stat_impl(path, size);
+    return realStat64(path, size);
 }
 
 int VFS::mkdir(const char *dir) {
@@ -136,33 +195,39 @@ int VFS::closedir(struct retro_vfs_dir_handle *dirstream) {
 }
 
 retro_vfs_interface * VFS::getInterface() {
-    static retro_vfs_interface vfsInterface {
-        /* Introduced in VFS API v1 */
-        &VFS::path,
-        &VFS::open,
-        &VFS::close,
-        &VFS::size,
-        &VFS::tell,
-        &VFS::seek,
-        &VFS::read,
-        &VFS::write,
-        &VFS::flush,
-        &VFS::remove,
-        &VFS::rename,
+    static nx_retro_vfs_interface_v4 vfsInterface {
+        {
+            /* Introduced in VFS API v1 */
+            &VFS::path,
+            &VFS::open,
+            &VFS::close,
+            &VFS::size,
+            &VFS::tell,
+            &VFS::seek,
+            &VFS::read,
+            &VFS::write,
+            &VFS::flush,
+            &VFS::remove,
+            &VFS::rename,
 
-        /* Introduced in VFS API v2 */
-        &VFS::truncate,
+            /* Introduced in VFS API v2 */
+            &VFS::truncate,
 
-        /* Introduced in VFS API v3 */
-        &VFS::stat,
-        &VFS::mkdir,
-        &VFS::opendir,
-        &VFS::readdir,
-        &VFS::direntGetName,
-        &VFS::direntIsDir,
-        &VFS::closedir
+            /* Introduced in VFS API v3 */
+            &VFS::stat,
+            &VFS::mkdir,
+            &VFS::opendir,
+            &VFS::readdir,
+            &VFS::direntGetName,
+            &VFS::direntIsDir,
+            &VFS::closedir
+        },
+
+        /* Introduced in VFS API v4 */
+        &VFS::stat64
     };
-    return &vfsInterface;
+    // Cores see the v3 view; one that negotiated v4 reads stat_64 past its end.
+    return &vfsInterface.v3;
 }
 
 void VFS::initialize(std::vector<VFSFile> files) {
@@ -210,7 +275,7 @@ struct retro_vfs_file_handle* VFS::virtualOpen(const char *path, unsigned int mo
     return stream;
 }
 
-std::optional<int> VFS::virtualStat(const char *path, int32_t *size) {
+std::optional<int> VFS::virtualStat(const char *path, int64_t *size) {
     if (path == nullptr) {
         return std::nullopt;
     }
@@ -228,7 +293,7 @@ std::optional<int> VFS::virtualStat(const char *path, int32_t *size) {
     }
 
     if (size != nullptr) {
-        *size = (int32_t) fileStat.st_size;
+        *size = (int64_t) fileStat.st_size;
     }
 
     LOGV("VFS Virtual file stat: %s %lld", path, (long long) fileStat.st_size);

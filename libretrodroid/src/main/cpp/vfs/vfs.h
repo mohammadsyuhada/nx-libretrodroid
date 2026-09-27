@@ -31,9 +31,22 @@
 
 namespace libretrodroid {
 
+// VFS API v4 (upstream libretro.h: retro_vfs_stat_64_t and the stat_64 member appended to
+// struct retro_vfs_interface). The libretro-common submodule this fork builds against stops
+// at v3, so the v4 additions are declared here under fork-local names that cannot clash with
+// the real ones if a submodule bump brings them in.
+typedef int (RETRO_CALLCONV *nx_retro_vfs_stat_64_t)(const char *path, int64_t *size);
+
+// Layout-compatible with upstream's v4 struct retro_vfs_interface: the v3 struct followed by
+// stat_64. A core that negotiated v4 reads stat_64 right after closedir.
+struct nx_retro_vfs_interface_v4 {
+    struct retro_vfs_interface v3;
+    nx_retro_vfs_stat_64_t stat_64;
+};
+
 class VFS {
 public:
-    static const unsigned SUPPORTED_VERSION = 3;
+    static const unsigned SUPPORTED_VERSION = 4;
     static VFS& getInstance()
     {
         static VFS instance;
@@ -53,7 +66,9 @@ private:
 
     VFSFile* findVirtualFile(const char* path);
 
-    std::optional<int> virtualStat(const char *path, int32_t *size);
+    std::optional<int> virtualStat(const char *path, int64_t *size);
+
+    static int statInternal(const char *path, int64_t *size);
 
 public:
 
@@ -72,6 +87,7 @@ public:
     static int64_t truncate(struct retro_vfs_file_handle *stream, int64_t length);
 
     static int stat(const char *path, int32_t *size);
+    static int stat64(const char *path, int64_t *size);
     static int mkdir(const char *dir);
     static struct retro_vfs_dir_handle* opendir(const char *dir, bool include_hidden);
     static bool readdir(struct retro_vfs_dir_handle *dirstream);
