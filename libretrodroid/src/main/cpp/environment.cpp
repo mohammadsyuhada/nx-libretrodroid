@@ -23,12 +23,14 @@
 #include <cstring>
 #include <cmath>
 #include <EGL/egl.h>
+#include <GLES3/gl3.h>
 #include <unordered_map>
 #include <algorithm>
 
 #include "../../libretro-common/include/libretro.h"
 #include "log.h"
 #include "environment.h"
+#include "hwcontext.h"
 #include "vfs/vfs.h"
 #include "microphone/microphoneinterface.h"
 #include "achievements/achievements.h"
@@ -364,6 +366,24 @@ bool Environment::environment_handle_set_controller_info(const struct retro_cont
 }
 
 bool Environment::environment_handle_set_hw_render(struct retro_hw_render_callback* hw_render_callback) {
+    // Cores ask from retro_load_game, which GLRetroView runs in onSurfaceCreated on the GL thread with the view's
+    // context current, so the version queried here is the one the core will render with.
+    GLint glMajor = 0, glMinor = 0;
+    glGetIntegerv(GL_MAJOR_VERSION, &glMajor);
+    glGetIntegerv(GL_MINOR_VERSION, &glMinor);
+    if (glMajor == 0) {
+        // No current context on this thread: assume what the view asks EGL for (3.x on every supported device).
+        glMajor = 3;
+        glMinor = 0;
+    }
+    if (!libretrodroid::canServeHwContext(hw_render_callback->context_type, hw_render_callback->version_major,
+                                          hw_render_callback->version_minor, glMajor, glMinor)) {
+        LOGI("Refusing SET_HW_RENDER: context type %u (%u.%u) on GLES %d.%d",
+             hw_render_callback->context_type, hw_render_callback->version_major,
+             hw_render_callback->version_minor, glMajor, glMinor);
+        return false;
+    }
+
     useHWAcceleration = true;
     useDepth = hw_render_callback->depth;
     useStencil = hw_render_callback->stencil;
@@ -530,6 +550,18 @@ bool Environment::handle_callback_environment(unsigned cmd, void *data) {
         case RETRO_ENVIRONMENT_SET_HW_RENDER:
             LOGD("Called RETRO_ENVIRONMENT_SET_HW_RENDER");
             return environment_handle_set_hw_render(static_cast<struct retro_hw_render_callback*>(data));
+
+        case RETRO_ENVIRONMENT_SET_MESSAGE: {
+            auto message = static_cast<const struct retro_message*>(data);
+            if (message && message->msg) LOGI("Core message: %s", message->msg);
+            return true;
+        }
+
+        case RETRO_ENVIRONMENT_SET_MESSAGE_EXT: {
+            auto message = static_cast<const struct retro_message_ext*>(data);
+            if (message && message->msg) LOGI("Core message: %s", message->msg);
+            return true;
+        }
 
         case RETRO_ENVIRONMENT_GET_RUMBLE_INTERFACE:
             LOGD("Called RETRO_ENVIRONMENT_GET_RUMBLE_INTERFACE");

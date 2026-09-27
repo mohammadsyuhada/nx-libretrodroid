@@ -71,6 +71,8 @@ add_library(libretrodroid SHARED
         videolayout.cpp
         screenregion.h
         screenregion.cpp
+        hwcontext.h
+        hwcontext.cpp
         renderers/renderer.h
         renderers/renderer.cpp
         renderers/es3/es3utils.h
