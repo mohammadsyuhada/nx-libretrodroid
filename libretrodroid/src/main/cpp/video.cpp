@@ -23,6 +23,7 @@
 #include <cmath>
 #include <utility>
 #include <sstream>
+#include <stdexcept>
 
 #include "log.h"
 
@@ -113,30 +114,34 @@ void Video::updateProgram() {
     shadersChain = {};
 
     std::for_each(shaders.passes.begin(), shaders.passes.end(), [&](const auto& item){
-        auto shader = ShaderChainEntry { };
-
-        shader.gProgram = createProgram(item.vertex.data(), item.fragment.data());
-        if (!shader.gProgram) {
-            LOGE("Could not create gl program.");
-            throw std::runtime_error("Cannot create gl program");
-        }
-
-        shader.gvPositionHandle = glGetAttribLocation(shader.gProgram, "vPosition");
-
-        shader.gvCoordinateHandle = glGetAttribLocation(shader.gProgram, "vCoordinate");
-
-        shader.gTextureHandle = glGetUniformLocation(shader.gProgram, "texture");
-
-        shader.gPreviousPassTextureHandle = glGetUniformLocation(shader.gProgram, "previousPass");
-
-        shader.gTextureSizeHandle = glGetUniformLocation(shader.gProgram, "textureSize");
-
-        shader.gScreenDensityHandle = glGetUniformLocation(shader.gProgram, "screenDensity");
-
-        shadersChain.push_back(shader);
+        shadersChain.push_back(createShaderChainEntry(item));
     });
 
     renderer->setShaders(shaders);
+}
+
+Video::ShaderChainEntry Video::createShaderChainEntry(const ShaderManager::Pass& pass) {
+    auto shader = ShaderChainEntry { };
+
+    shader.gProgram = createProgram(pass.vertex.data(), pass.fragment.data());
+    if (!shader.gProgram) {
+        LOGE("Could not create gl program.");
+        throw std::runtime_error("Cannot create gl program");
+    }
+
+    shader.gvPositionHandle = glGetAttribLocation(shader.gProgram, "vPosition");
+
+    shader.gvCoordinateHandle = glGetAttribLocation(shader.gProgram, "vCoordinate");
+
+    shader.gTextureHandle = glGetUniformLocation(shader.gProgram, "texture");
+
+    shader.gPreviousPassTextureHandle = glGetUniformLocation(shader.gProgram, "previousPass");
+
+    shader.gTextureSizeHandle = glGetUniformLocation(shader.gProgram, "textureSize");
+
+    shader.gScreenDensityHandle = glGetUniformLocation(shader.gProgram, "screenDensity");
+
+    return shader;
 }
 
 void Video::setPresetChain(std::optional<PresetChain> chain) {
@@ -211,15 +216,53 @@ void Video::renderFrame(bool force) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
     glBindTexture(GL_TEXTURE_2D, 0);
 
+    if (!videoLayout.getRegionQuads().empty()) {
+        renderRegions();
+        frameCount++;
+        return;
+    }
+
     if (presetRenderer) {
+        auto texW = (unsigned) getTextureWidth();
+        auto texH = (unsigned) getTextureHeight();
         presetRenderer->render(
-            renderer->getTexture(), (unsigned) getTextureWidth(), (unsigned) getTextureHeight(),
+            renderer->getTexture(), texW, texH, texW, texH,
             videoLayout.getTextureCoordinates(), videoLayout.getForegroundVertices(), videoLayout.getFramebufferVertices(),
             videoLayout.getScreenWidth(), videoLayout.getScreenHeight(), linearTexture, frameCount);
         frameCount++;
         return;
     }
 
+    drawBuiltInChain(videoLayout.getForegroundVertices(), videoLayout.getTextureCoordinates());
+    frameCount++;
+}
+
+void Video::renderRegions() {
+    auto texW = (unsigned) getTextureWidth();
+    auto texH = (unsigned) getTextureHeight();
+    for (const auto& quad : videoLayout.getRegionQuads()) {
+        if (!quad.shaded) {
+            drawPlain(quad);
+        } else if (presetRenderer) {
+            // One chain serves every shaded region in turn: it keeps no frame history, and it resizes its FBOs only
+            // when the region's size changes (the frontend gives shaded regions one size). Only pass 0 reads the
+            // region's texture coordinates: later passes that sample Original (or the source) use whole-texture
+            // coordinates, so they see the whole frame (both DS screens), not just this region.
+            auto frameW = (unsigned) std::lround(quad.srcWidth * (float) texW);
+            auto frameH = (unsigned) std::lround(quad.srcHeight * (float) texH);
+            presetRenderer->render(
+                renderer->getTexture(), texW, texH, frameW, frameH,
+                quad.coordinates, quad.vertices, videoLayout.getFramebufferVertices(),
+                videoLayout.getScreenWidth(), videoLayout.getScreenHeight(), linearTexture, frameCount);
+        } else {
+            // Built-in shaders: single-pass ones (the app only uses SHADER_DEFAULT) draw each region exactly; the
+            // multi-pass upscalers are not region-aware.
+            drawBuiltInChain(quad.vertices, quad.coordinates);
+        }
+    }
+}
+
+void Video::drawBuiltInChain(const std::array<float, 12>& vertices, const std::array<float, 12>& coordinates) {
     for (int i = 0; i < shadersChain.size(); ++i) {
         auto shader = shadersChain[i];
         auto passData = renderer->getPassData(i);
@@ -236,11 +279,10 @@ void Video::renderFrame(bool force) {
 
         glUseProgram(shader.gProgram);
 
-        auto vertices = isLastPass ? videoLayout.getForegroundVertices() : videoLayout.getFramebufferVertices();
-        glVertexAttribPointer(shader.gvPositionHandle, 2, GL_FLOAT, GL_FALSE, 0, vertices.data());
+        const auto& passVertices = isLastPass ? vertices : videoLayout.getFramebufferVertices();
+        glVertexAttribPointer(shader.gvPositionHandle, 2, GL_FLOAT, GL_FALSE, 0, passVertices.data());
         glEnableVertexAttribArray(shader.gvPositionHandle);
 
-        auto coordinates = videoLayout.getTextureCoordinates();
         glVertexAttribPointer(shader.gvCoordinateHandle, 2, GL_FLOAT, GL_FALSE, 0, coordinates.data());
         glEnableVertexAttribArray(shader.gvCoordinateHandle);
 
@@ -272,7 +314,47 @@ void Video::renderFrame(bool force) {
 
         glUseProgram(0);
     }
-    frameCount++;
+}
+
+void Video::drawPlain(const RegionQuad& quad) {
+    if (!plainShader) {
+        auto chain = ShaderManager::getShader({ ShaderManager::Type::SHADER_DEFAULT, { { "LINEAR", "0" } } });
+        plainShader = createShaderChainEntry(chain.passes.front());
+    }
+    const auto& s = *plainShader;
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glViewport(0, 0, videoLayout.getScreenWidth(), videoLayout.getScreenHeight());
+    glUseProgram(s.gProgram);
+
+    glVertexAttribPointer(s.gvPositionHandle, 2, GL_FLOAT, GL_FALSE, 0, quad.vertices.data());
+    glEnableVertexAttribArray(s.gvPositionHandle);
+    glVertexAttribPointer(s.gvCoordinateHandle, 2, GL_FLOAT, GL_FALSE, 0, quad.coordinates.data());
+    glEnableVertexAttribArray(s.gvCoordinateHandle);
+
+    // The unshaded (inset) screen samples nearest; the sharpness the other regions use is put back afterwards.
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, renderer->getTexture());
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glUniform1i(s.gTextureHandle, 0);
+    glUniform2f(s.gTextureSizeHandle, getTextureWidth(), getTextureHeight());
+    glUniform1f(s.gScreenDensityHandle, getScreenDensity());
+
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    glDisableVertexAttribArray(s.gvPositionHandle);
+    glDisableVertexAttribArray(s.gvCoordinateHandle);
+    GLint filter = linearTexture ? GL_LINEAR : GL_NEAREST;
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glUseProgram(0);
+}
+
+void Video::updateScreenRegions(std::vector<ScreenRegion> regions) {
+    videoLayout.updateScreenRegions(std::move(regions));
+    isDirty = true;
 }
 
 void Video::renderPausedFrame() {

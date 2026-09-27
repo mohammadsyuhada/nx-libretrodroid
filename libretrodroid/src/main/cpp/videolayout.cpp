@@ -22,6 +22,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <utility>
 
 namespace libretrodroid {
 
@@ -38,6 +39,7 @@ void VideoLayout::updateBuffers() {
     updateForegroundVertices();
     updateBackgroundVertices();
     updateRelativeForegroundBounds();
+    updateRegionQuads();
 }
 
 void VideoLayout::updateForegroundVertices() {
@@ -308,6 +310,23 @@ void VideoLayout::updateRelativeForegroundBounds() {
         relativeForegroundBounds[2],
         relativeForegroundBounds[3]
     );
+}
+
+void VideoLayout::updateScreenRegions(std::vector<ScreenRegion> regions) {
+    LOGD("Updated screen regions: %zu", regions.size());
+    screenRegions = std::move(regions);
+    updateRegionQuads();
+}
+
+void VideoLayout::updateRegionQuads() {
+    regionQuads.clear();
+    if (!screenRegions.empty() && std::fabs(rotation) > 0.001F) {
+        LOGW("Screen regions ignore the core's rotation (%f radians)", rotation);
+    }
+    for (const auto& region : screenRegions) {
+        regionQuads.push_back(buildRegionQuad(
+            region, viewportRect.getX(), viewportRect.getY(), viewportRect.getWidth(), viewportRect.getHeight(), bottomLeftOrigin));
+    }
 }
 
 }

@@ -1,0 +1,63 @@
+// Host check for screenregion.cpp (pure, no GL). From the fork root:
+//   out=$(mktemp -d)/screenregion_test && clang++ -std=c++17 -Ilibretrodroid/src/main/cpp \
+//     libretrodroid/src/test/cpp/screenregion_test.cpp libretrodroid/src/main/cpp/screenregion.cpp -o "$out" && "$out"
+#include "screenregion.h"
+
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+
+using namespace libretrodroid;
+
+static int failures = 0;
+
+static void near(float expected, float actual, const char* what) {
+    if (std::fabs(expected - actual) > 1e-5F) {
+        std::printf("FAIL %s: expected %f, got %f\n", what, expected, actual);
+        failures++;
+    }
+}
+
+static void check(bool ok, const char* what) {
+    if (!ok) { std::printf("FAIL %s\n", what); failures++; }
+}
+
+int main() {
+    // The DS bottom screen (lower half of the frame) drawn over the top half of a full viewport.
+    ScreenRegion bottom { 0.0F, 0.5F, 1.0F, 1.0F,  0.0F, 0.0F, 1.0F, 0.5F,  true, true };
+    RegionQuad q = buildRegionQuad(bottom, 0.0F, 0.0F, 1.0F, 1.0F, false);
+    // Corner order as VideoLayout: (left, top), (left, bottom), (right, top), (right, top), (left, bottom), (right, bottom).
+    near(-1.0F, q.vertices[0], "v0 x");  near(1.0F, q.vertices[1], "v0 y");
+    near(0.0F, q.coordinates[0], "c0 u"); near(0.5F, q.coordinates[1], "c0 v");
+    near(-1.0F, q.vertices[2], "v1 x");  near(0.0F, q.vertices[3], "v1 y");
+    near(0.0F, q.coordinates[2], "c1 u"); near(1.0F, q.coordinates[3], "c1 v");
+    near(1.0F, q.vertices[4], "v2 x");   near(1.0F, q.vertices[5], "v2 y");
+    near(1.0F, q.vertices[10], "v5 x");  near(0.0F, q.vertices[11], "v5 y");
+    near(1.0F, q.coordinates[10], "c5 u"); near(1.0F, q.coordinates[11], "c5 v");
+    near(1.0F, q.srcWidth, "src width"); near(0.5F, q.srcHeight, "src height");
+    check(q.shaded, "shaded flag");
+
+    // A GL core's framebuffer has its origin at the bottom: the frame's top row is texture v = 1.
+    RegionQuad g = buildRegionQuad(bottom, 0.0F, 0.0F, 1.0F, 1.0F, true);
+    near(0.5F, g.coordinates[1], "gl c0 v");
+    near(0.0F, g.coordinates[3], "gl c1 v");
+
+    // dst is relative to the viewport: a viewport on the right half of the view.
+    RegionQuad v = buildRegionQuad(bottom, 0.5F, 0.0F, 0.5F, 1.0F, false);
+    near(0.0F, v.vertices[0], "viewport v0 x");
+    near(1.0F, v.vertices[10], "viewport v5 x");
+
+    // JNI's packed floats: 10 per region; a trailing partial region is dropped.
+    float packed[] = { 0, 0, 1, 0.5F, 0.1F, 0.2F, 0.3F, 0.4F, 0, 1,  9, 9, 9 };
+    auto regions = ScreenRegion::unpack(packed, sizeof(packed) / sizeof(float));
+    check(regions.size() == 1, "unpack size");
+    if (regions.size() == 1) {
+        near(0.5F, regions[0].srcBottom, "unpack srcBottom");
+        near(0.4F, regions[0].dstBottom, "unpack dstBottom");
+        check(!regions[0].shaded && regions[0].touch, "unpack flags");
+    }
+    check(ScreenRegion::unpack(nullptr, 0).empty(), "unpack null");
+
+    if (failures == 0) std::printf("screenregion: all checks passed\n");
+    return failures == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+}

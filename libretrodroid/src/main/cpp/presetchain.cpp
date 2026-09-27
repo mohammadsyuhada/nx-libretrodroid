@@ -475,6 +475,8 @@ void PresetChainRenderer::render(
     GLuint source,
     unsigned srcW,
     unsigned srcH,
+    unsigned frameW,
+    unsigned frameH,
     const std::array<float, 12>& sourceCoords,
     const std::array<float, 12>& foreground,
     const std::array<float, 12>& screenQuad,
@@ -484,7 +486,7 @@ void PresetChainRenderer::render(
     unsigned frameCount
 ) {
     // No frame yet: nothing to draw, and no point sizing FBOs from it.
-    if (passes.empty() || srcW == 0 || srcH == 0) return;
+    if (passes.empty() || srcW == 0 || srcH == 0 || frameW == 0 || frameH == 0) return;
 
     // Units: 0 = Texture, 1 = Orig, 2.. = LUTs in order, then Pass1..PassN outputs.
     const unsigned lutBase = 2;
@@ -502,9 +504,9 @@ void PresetChainRenderer::render(
     auto rect = foregroundRect(foreground, screenW, screenH);
     auto viewportW = (unsigned) rect[2];
     auto viewportH = (unsigned) rect[3];
-    std::array<unsigned, 4> inputs = { srcW, srcH, viewportW, viewportH };
+    std::array<unsigned, 4> inputs = { frameW, frameH, viewportW, viewportH };
     if (sizedFor != inputs) {
-        resize(srcW, srcH, viewportW, viewportH);
+        resize(frameW, frameH, viewportW, viewportH);
         sizedFor = inputs;
     }
 
@@ -518,8 +520,8 @@ void PresetChainRenderer::render(
     for (size_t i = 0; i < passes.size(); ++i) {
         Pass& pass = passes[i];
         GLuint input = i == 0 ? source : passes[i - 1].fboTexture;
-        unsigned inputW = i == 0 ? srcW : passes[i - 1].width;
-        unsigned inputH = i == 0 ? srcH : passes[i - 1].height;
+        unsigned inputW = i == 0 ? frameW : passes[i - 1].width;
+        unsigned inputH = i == 0 ? frameH : passes[i - 1].height;
 
         // The previous output stays bound on its PassN unit for every later pass.
         if (i > 0) {
@@ -542,7 +544,7 @@ void PresetChainRenderer::render(
         setSampling(pass.cfg.filterLinear.value_or(defaultLinear), pass.cfg.wrap);
 
         glUniform1i(pass.texture, 0);
-        glUniform2f(pass.textureSize, (float) inputW, (float) inputH);
+        glUniform2f(pass.textureSize, (float) (i == 0 ? srcW : inputW), (float) (i == 0 ? srcH : inputH));
         glUniform2f(pass.inputSize, (float) inputW, (float) inputH);
         glUniform2f(pass.outputSize, (float) pass.width, (float) pass.height);
         glUniformMatrix4fv(pass.mvpMatrix, 1, GL_FALSE, identityMatrix);
@@ -551,7 +553,7 @@ void PresetChainRenderer::render(
 
         glUniform1i(pass.origTexture, 1);
         glUniform2f(pass.origTextureSize, (float) srcW, (float) srcH);
-        glUniform2f(pass.origInputSize, (float) srcW, (float) srcH);
+        glUniform2f(pass.origInputSize, (float) frameW, (float) frameH);
 
         for (size_t l = 0; l < pass.luts.size(); ++l) {
             glUniform1i(pass.luts[l], (GLint) (lutBase + l));

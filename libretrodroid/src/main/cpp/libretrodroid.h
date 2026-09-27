@@ -157,6 +157,10 @@ public:
 
     void setScreenOffset(float x, float y);
 
+    // Regions of the core frame drawn at places in the view (empty = one picture). Remembered, like the viewport, so a
+    // Video created later (a new surface) gets them. GL thread.
+    void setScreenRegions(std::vector<ScreenRegion> regions);
+
     // Base width, base height and aspect ratio of the running game; zeros before it loads. Any thread.
     std::array<float, 3> getGameGeometry() const;
 
@@ -202,6 +206,7 @@ private:
     unsigned int scaleMode = SCALE_MODE_FIT;
     float screenOffsetX = 0.0F;
     float screenOffsetY = 0.0F;
+    std::vector<ScreenRegion> screenRegions;
 
     std::atomic<float> geometryWidth { 0.0F };
     std::atomic<float> geometryHeight { 0.0F };

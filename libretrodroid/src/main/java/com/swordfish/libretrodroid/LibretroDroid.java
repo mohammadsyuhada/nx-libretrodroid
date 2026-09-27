@@ -123,6 +123,8 @@ public class LibretroDroid {
     public static native void setViewportAlignment(int viewportAlignment);
     public static native void setScaleMode(int scaleMode);
     public static native void setScreenOffset(float x, float y);
+    /** 10 floats per region: src l,t,r,b (0..1 of the frame), dst l,t,r,b (0..1 of the viewport), shaded, touch (0/1). */
+    public static native void setScreenRegions(float[] packed);
     public static native float[] getGameGeometry();
 
     public static native void setShaderChain(

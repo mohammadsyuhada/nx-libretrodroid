@@ -88,10 +88,15 @@ public:
 
     void setParameter(const std::string& id, float value);
 
-    // Draws the chain: source is the core frame texture (srcW x srcH); the last pass lands on framebuffer 0
-    // inside the foreground rect (clip-space vertices, 12 floats). defaultLinear is the Screen Sharpness
-    // filter used where a pass leaves filter_linear unspecified and for the final blit of a scaled last pass.
-    void render(GLuint source, unsigned srcW, unsigned srcH, const std::array<float, 12>& sourceCoords,
+    // Draws the chain: source is the core frame texture (srcW x srcH texels); the part being drawn is frameW x frameH of
+    // it at sourceCoords (the whole texture without regions, one DS screen with them). The last pass lands on framebuffer
+    // 0 inside the foreground rect (clip-space vertices, 12 floats). Pass 0's TextureSize and Orig's texture size are the
+    // texture's; InputSize, OrigInputSize and "source" scaling use the frame size. defaultLinear is the Screen Sharpness
+    // filter used where a pass leaves filter_linear unspecified and for the final blit of a scaled last pass. One
+    // instance may be run for several regions per frame: it keeps no frame history, and its FBOs follow the last
+    // (frame size, viewport size) it was run with.
+    void render(GLuint source, unsigned srcW, unsigned srcH, unsigned frameW, unsigned frameH,
+                const std::array<float, 12>& sourceCoords,
                 const std::array<float, 12>& foreground, const std::array<float, 12>& screenQuad,
                 int screenW, int screenH, bool defaultLinear, unsigned frameCount);
 
