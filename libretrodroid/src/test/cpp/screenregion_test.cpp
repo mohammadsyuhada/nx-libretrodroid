@@ -73,6 +73,26 @@ int main() {
     near(0.75F, buildRegionQuad(faded, 0.0F, 0.0F, 1.0F, 1.0F, false).alpha, "quad alpha");
     check(ScreenRegion::unpack(nullptr, 0).empty(), "unpack null");
 
+    // Downscaling: the region's source in frame pixels vs its destination in view pixels.
+    {
+        // A 4x DS frame (1024x1536): the top screen (1024x768 source) drawn 593 px wide in a 1248x1900 view.
+        ScreenRegion top4x { 0.0F, 0.0F, 1.0F, 0.5F,  0.0F, 0.0F, 593.0F / 1248.0F, 444.0F / 1900.0F,  true, false };
+        RegionQuad q4 = buildRegionQuad(top4x, 0.0F, 0.0F, 1.0F, 1.0F, true);
+        check(regionDownscales(q4, 1024.0F, 1536.0F, 1248.0F, 1900.0F), "4x screen into 593 px downscales");
+        // A 1x frame (256x384): the same region upscales.
+        check(!regionDownscales(q4, 256.0F, 384.0F, 1248.0F, 1900.0F), "1x screen into 593 px does not");
+        // The PiP inset at 3x: 768 px wide source into a 356 px inset.
+        ScreenRegion inset { 0.0F, 0.5F, 1.0F, 1.0F,  0.6F, 0.2F, 0.6F + 356.0F / 1080.0F, 0.2F + 267.0F / 1600.0F,  false, false, 0.5F };
+        RegionQuad qi = buildRegionQuad(inset, 0.0F, 0.0F, 1.0F, 1.0F, true);
+        check(regionDownscales(qi, 768.0F, 1152.0F, 1080.0F, 1600.0F), "3x inset downscales");
+        // Exactly 1:1 is not a downscale.
+        ScreenRegion exact { 0.0F, 0.0F, 1.0F, 0.5F,  0.0F, 0.0F, 512.0F / 1024.0F, 384.0F / 1024.0F,  true, false };
+        RegionQuad qe = buildRegionQuad(exact, 0.0F, 0.0F, 1.0F, 1.0F, false);
+        check(!regionDownscales(qe, 512.0F, 768.0F, 1024.0F, 1024.0F), "1:1 is not a downscale");
+        // An empty texture (before the first frame) never downscales.
+        check(!regionDownscales(q4, 0.0F, 0.0F, 1248.0F, 1900.0F), "empty texture");
+    }
+
     if (failures == 0) std::printf("screenregion: all checks passed\n");
     return failures == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

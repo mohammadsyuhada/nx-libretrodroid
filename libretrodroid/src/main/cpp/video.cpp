@@ -257,9 +257,24 @@ void Video::renderRegions() {
         } else {
             // Built-in shaders: single-pass ones (the app only uses SHADER_DEFAULT) draw each region exactly; the
             // multi-pass upscalers are not region-aware.
+            // A downscaled region samples linearly whatever the sharpness; put back after, as drawPlain does.
+            bool down = regionDownscales(quad, (float) texW, (float) texH,
+                                         videoLayout.getScreenWidth(), videoLayout.getScreenHeight());
+            GLint filter = (linearTexture || down) ? GL_LINEAR : GL_NEAREST;
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, renderer->getTexture());
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
+            glBindTexture(GL_TEXTURE_2D, 0);
             drawBuiltInChain(quad.vertices, quad.coordinates);
         }
     }
+    GLint filter = linearTexture ? GL_LINEAR : GL_NEAREST;
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, renderer->getTexture());
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
+    glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 void Video::drawBuiltInChain(const std::array<float, 12>& vertices, const std::array<float, 12>& coordinates) {
@@ -332,11 +347,14 @@ void Video::drawPlain(const RegionQuad& quad) {
     glVertexAttribPointer(s.gvCoordinateHandle, 2, GL_FLOAT, GL_FALSE, 0, quad.coordinates.data());
     glEnableVertexAttribArray(s.gvCoordinateHandle);
 
-    // The unshaded (inset) screen samples nearest; the sharpness the other regions use is put back afterwards.
+    // The unshaded (inset) screen samples nearest, or linearly when it is downscaled; the sharpness the other regions
+    // use is put back afterwards.
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, renderer->getTexture());
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    GLint plainFilter = regionDownscales(quad, getTextureWidth(), getTextureHeight(),
+                                         videoLayout.getScreenWidth(), videoLayout.getScreenHeight()) ? GL_LINEAR : GL_NEAREST;
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, plainFilter);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, plainFilter);
     glUniform1i(s.gTextureHandle, 0);
     glUniform2f(s.gTextureSizeHandle, getTextureWidth(), getTextureHeight());
     glUniform1f(s.gScreenDensityHandle, getScreenDensity());

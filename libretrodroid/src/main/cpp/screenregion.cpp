@@ -52,4 +52,13 @@ RegionQuad buildRegionQuad(const ScreenRegion& r, float vpX, float vpY, float vp
     };
 }
 
+bool regionDownscales(const RegionQuad& quad, float texW, float texH, float viewW, float viewH) {
+    // Clip space spans 2 units: vertex 0 is (left, top), vertex 1 (left, bottom), vertex 2 (right, top).
+    float dstW = std::fabs(quad.vertices[4] - quad.vertices[0]) / 2.0F * viewW;
+    float dstH = std::fabs(quad.vertices[1] - quad.vertices[3]) / 2.0F * viewH;
+    float srcW = quad.srcWidth * texW;
+    float srcH = quad.srcHeight * texH;
+    return srcW > dstW + 0.5F || srcH > dstH + 0.5F;
+}
+
 }

@@ -55,6 +55,10 @@ struct RegionQuad {
 // vpX, vpY, vpW, vpH: the viewport in 0..1 of the view, y down (VideoLayout's viewportRect).
 RegionQuad buildRegionQuad(const ScreenRegion& region, float vpX, float vpY, float vpW, float vpH, bool bottomLeftOrigin);
 
+// True when [quad]'s source, in pixels of a [texW] x [texH] frame, is larger than its destination, in pixels of a
+// [viewW] x [viewH] view, in either axis: such a region samples linearly so a high-resolution frame doesn't shimmer.
+bool regionDownscales(const RegionQuad& quad, float texW, float texH, float viewW, float viewH);
+
 }
 
 #endif //LIBRETRODROID_SCREENREGION_H
