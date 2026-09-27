@@ -26,17 +26,19 @@ namespace libretrodroid {
 
 // A part of the core frame drawn at a place in the view: src is 0..1 of the frame, dst is 0..1 of the view's viewport,
 // both y down. Shaded regions go through the shader preset (or the built-in shader); the others through the plain
-// default shader, nearest. touch is only carried for the Kotlin side, which maps touches. Drawn in list order.
+// default shader, nearest. touch is only carried for the Kotlin side, which maps touches. Drawn in list order; an
+// unshaded region with alpha below 1 is blended over what is already drawn (shaded regions ignore alpha).
 struct ScreenRegion {
     float srcLeft, srcTop, srcRight, srcBottom;
     float dstLeft, dstTop, dstRight, dstBottom;
     bool shaded;
     bool touch;
+    float alpha = 1.0F;
 
-    static constexpr size_t PACKED_SIZE = 10;
+    static constexpr size_t PACKED_SIZE = 11;
 
-    // Regions from JNI's packed floats: src l,t,r,b, dst l,t,r,b, shaded, touch (0/1) per region; a trailing partial
-    // region is dropped.
+    // Regions from JNI's packed floats: src l,t,r,b, dst l,t,r,b, shaded, touch (0/1), alpha per region; alpha is
+    // clamped to 0..1 (NaN reads as 1); a trailing partial region is dropped.
     static std::vector<ScreenRegion> unpack(const float* data, size_t count);
 };
 
@@ -45,6 +47,7 @@ struct RegionQuad {
     std::array<float, 12> vertices;
     std::array<float, 12> coordinates;
     bool shaded;
+    float alpha;      // below 1: blended over what is already drawn (unshaded regions only)
     float srcWidth;   // of the frame (0..1): the preset chain's input size is this times the texture size
     float srcHeight;
 };

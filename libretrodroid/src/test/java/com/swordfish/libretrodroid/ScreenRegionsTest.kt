@@ -47,15 +47,22 @@ class ScreenRegionsTest {
         assertNull(ScreenRegions.mapTouch(listOf(big), ScreenRect(0.5f, 0.5f, 0.5f, 0.5f), 0.5f, 0.5f))
     }
 
-    @Test fun packs_ten_floats_per_region_in_order() {
+    @Test fun packs_eleven_floats_per_region_in_order() {
         assertArrayEquals(
             floatArrayOf(
-                0f, 0.5f, 1f, 1f, 0f, 0f, 1f, 0.6f, 1f, 1f,
-                0f, 0f, 1f, 0.5f, 0.6f, 0.35f, 0.95f, 0.55f, 0f, 0f,
+                0f, 0.5f, 1f, 1f, 0f, 0f, 1f, 0.6f, 1f, 1f, 1f,
+                0f, 0f, 1f, 0.5f, 0.6f, 0.35f, 0.95f, 0.55f, 0f, 0f, 1f,
             ),
             ScreenRegions.pack(listOf(big, inset)),
             0f,
         )
         assertEquals(0, ScreenRegions.pack(emptyList()).size)
+    }
+
+    @Test fun pack_appends_alpha_last() {
+        val packed = ScreenRegions.pack(listOf(big, inset.copy(alpha = 0.5f)))
+        assertEquals(22, packed.size)
+        assertEquals(1f, packed[10], 0f)    // the default
+        assertEquals(0.5f, packed[21], 0f)
     }
 }

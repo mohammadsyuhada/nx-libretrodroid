@@ -341,7 +341,36 @@ void Video::drawPlain(const RegionQuad& quad) {
     glUniform2f(s.gTextureSizeHandle, getTextureWidth(), getTextureHeight());
     glUniform1f(s.gScreenDensityHandle, getScreenDensity());
 
+    // A translucent region (the inset) is blended over what the regions before it drew. Only the blend state is
+    // touched, and put back as found: a GL core caches its own.
+    bool translucent = quad.alpha < 1.0F;
+    GLboolean blend = GL_FALSE;
+    GLint blendSrcRgb = GL_ONE, blendDstRgb = GL_ZERO, blendSrcAlpha = GL_ONE, blendDstAlpha = GL_ZERO;
+    GLint blendEquationRgb = GL_FUNC_ADD, blendEquationAlpha = GL_FUNC_ADD;
+    GLfloat blendColor[4] = { 0.0F, 0.0F, 0.0F, 0.0F };
+    if (translucent) {
+        blend = glIsEnabled(GL_BLEND);
+        glGetIntegerv(GL_BLEND_SRC_RGB, &blendSrcRgb);
+        glGetIntegerv(GL_BLEND_DST_RGB, &blendDstRgb);
+        glGetIntegerv(GL_BLEND_SRC_ALPHA, &blendSrcAlpha);
+        glGetIntegerv(GL_BLEND_DST_ALPHA, &blendDstAlpha);
+        glGetFloatv(GL_BLEND_COLOR, blendColor);
+        glGetIntegerv(GL_BLEND_EQUATION_RGB, &blendEquationRgb);
+        glGetIntegerv(GL_BLEND_EQUATION_ALPHA, &blendEquationAlpha);
+        glEnable(GL_BLEND);
+        glBlendEquation(GL_FUNC_ADD);
+        glBlendColor(0.0F, 0.0F, 0.0F, quad.alpha);
+        glBlendFunc(GL_CONSTANT_ALPHA, GL_ONE_MINUS_CONSTANT_ALPHA);
+    }
+
     glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    if (translucent) {
+        glBlendColor(blendColor[0], blendColor[1], blendColor[2], blendColor[3]);
+        glBlendFuncSeparate(blendSrcRgb, blendDstRgb, blendSrcAlpha, blendDstAlpha);
+        glBlendEquationSeparate(blendEquationRgb, blendEquationAlpha);
+        if (!blend) glDisable(GL_BLEND);
+    }
 
     glDisableVertexAttribArray(s.gvPositionHandle);
     glDisableVertexAttribArray(s.gvCoordinateHandle);

@@ -27,17 +27,24 @@ data class ScreenRect(val left: Float, val top: Float, val right: Float, val bot
 /**
  * A part of the core frame ([src], 0..1 of the frame) drawn at [dst] (0..1 of the view's viewport). [shaded] regions go
  * through the shader preset, the others through the plain default shader; [touch] regions take touches, mapped back into
- * the frame. A list is drawn back to front.
+ * the frame. A list is drawn back to front. An unshaded region with [alpha] below 1 is blended over what is already drawn
+ * (shaded regions ignore it); [alpha] never changes which region takes a touch.
  */
-data class ScreenRegion(val src: ScreenRect, val dst: ScreenRect, val shaded: Boolean, val touch: Boolean)
+data class ScreenRegion(
+    val src: ScreenRect,
+    val dst: ScreenRect,
+    val shaded: Boolean,
+    val touch: Boolean,
+    val alpha: Float = 1f,
+)
 
 /** A position in the core frame, 0..1 each way (y down): what the core receives as its pointer. */
 data class FramePoint(val x: Float, val y: Float)
 
 object ScreenRegions {
-    const val PACKED_SIZE = 10
+    const val PACKED_SIZE = 11
 
-    /** For [LibretroDroid.setScreenRegions]: src l,t,r,b, dst l,t,r,b, shaded, touch (0/1) per region, in order. */
+    /** For [LibretroDroid.setScreenRegions]: src l,t,r,b, dst l,t,r,b, shaded, touch (0/1), alpha per region, in order. */
     fun pack(regions: List<ScreenRegion>): FloatArray {
         val out = FloatArray(regions.size * PACKED_SIZE)
         regions.forEachIndexed { i, r ->
@@ -46,6 +53,7 @@ object ScreenRegions {
             out[o + 4] = r.dst.left; out[o + 5] = r.dst.top; out[o + 6] = r.dst.right; out[o + 7] = r.dst.bottom
             out[o + 8] = if (r.shaded) 1f else 0f
             out[o + 9] = if (r.touch) 1f else 0f
+            out[o + 10] = r.alpha
         }
         return out
     }

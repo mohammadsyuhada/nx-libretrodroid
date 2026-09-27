@@ -17,6 +17,9 @@
 
 #include "screenregion.h"
 
+#include <algorithm>
+#include <cmath>
+
 namespace libretrodroid {
 
 std::vector<ScreenRegion> ScreenRegion::unpack(const float* data, size_t count) {
@@ -24,7 +27,8 @@ std::vector<ScreenRegion> ScreenRegion::unpack(const float* data, size_t count) 
     if (data == nullptr) return out;
     for (size_t i = 0; i + PACKED_SIZE <= count; i += PACKED_SIZE) {
         const float* d = data + i;
-        out.push_back({ d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8] != 0.0F, d[9] != 0.0F });
+        float alpha = std::isnan(d[10]) ? 1.0F : std::clamp(d[10], 0.0F, 1.0F);
+        out.push_back({ d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8] != 0.0F, d[9] != 0.0F, alpha });
     }
     return out;
 }
@@ -42,6 +46,7 @@ RegionQuad buildRegionQuad(const ScreenRegion& r, float vpX, float vpY, float vp
         { left, top,  left, bottom,  right, top,  right, top,  left, bottom,  right, bottom },
         { u0, vTop,  u0, vBottom,  u1, vTop,  u1, vTop,  u0, vBottom,  u1, vBottom },
         r.shaded,
+        r.alpha,
         r.srcRight - r.srcLeft,
         r.srcBottom - r.srcTop,
     };

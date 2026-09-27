@@ -47,15 +47,30 @@ int main() {
     near(0.0F, v.vertices[0], "viewport v0 x");
     near(1.0F, v.vertices[10], "viewport v5 x");
 
-    // JNI's packed floats: 10 per region; a trailing partial region is dropped.
-    float packed[] = { 0, 0, 1, 0.5F, 0.1F, 0.2F, 0.3F, 0.4F, 0, 1,  9, 9, 9 };
+    // JNI's packed floats: 11 per region, alpha last (clamped to 0..1, NaN reads as 1); a trailing partial region is
+    // dropped.
+    float packed[] = {
+        0, 0, 1, 0.5F, 0.1F, 0.2F, 0.3F, 0.4F, 0, 1, 0.5F,
+        0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 2.0F,
+        0, 0, 1, 1, 0, 0, 1, 1, 1, 0, -1.0F,
+        0, 0, 1, 1, 0, 0, 1, 1, 1, 0, NAN,
+        9, 9, 9,
+    };
     auto regions = ScreenRegion::unpack(packed, sizeof(packed) / sizeof(float));
-    check(regions.size() == 1, "unpack size");
-    if (regions.size() == 1) {
+    check(regions.size() == 4, "unpack size");
+    if (regions.size() == 4) {
         near(0.5F, regions[0].srcBottom, "unpack srcBottom");
         near(0.4F, regions[0].dstBottom, "unpack dstBottom");
         check(!regions[0].shaded && regions[0].touch, "unpack flags");
+        near(0.5F, regions[0].alpha, "unpack alpha");
+        near(1.0F, regions[1].alpha, "unpack alpha clamped high");
+        near(0.0F, regions[2].alpha, "unpack alpha clamped low");
+        near(1.0F, regions[3].alpha, "unpack alpha NaN");
     }
+
+    // The quad carries the region's alpha to the draw.
+    ScreenRegion faded { 0.0F, 0.0F, 1.0F, 0.5F,  0.6F, 0.6F, 0.9F, 0.9F,  false, false, 0.75F };
+    near(0.75F, buildRegionQuad(faded, 0.0F, 0.0F, 1.0F, 1.0F, false).alpha, "quad alpha");
     check(ScreenRegion::unpack(nullptr, 0).empty(), "unpack null");
 
     if (failures == 0) std::printf("screenregion: all checks passed\n");
