@@ -872,6 +872,17 @@ JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_setScreenO
     LibretroDroid::getInstance().setScreenOffset(x, y);
 }
 
+JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_setScreenRegions(
+    JNIEnv* env,
+    jclass obj,
+    jfloatArray packed
+) {
+    jsize count = packed != nullptr ? env->GetArrayLength(packed) : 0;
+    std::vector<float> data((size_t) count);
+    if (count > 0) env->GetFloatArrayRegion(packed, 0, count, data.data());
+    LibretroDroid::getInstance().setScreenRegions(ScreenRegion::unpack(data.data(), data.size()));
+}
+
 JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_setShaderChain(
     JNIEnv* env,
     jclass obj,

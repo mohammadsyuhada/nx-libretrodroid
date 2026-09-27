@@ -23,6 +23,7 @@
 #include <array>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "renderers/renderer.h"
 #include "shadermanager.h"
@@ -80,6 +81,7 @@ public:
     void updateScaleMode(unsigned int scaleMode);
     void updateScreenOffset(float x, float y);
     void updateContentSize(unsigned width, unsigned height);
+    void updateScreenRegions(std::vector<ScreenRegion> regions);
 
     // force: draw even when skipDuplicateFrames would skip an unchanged frame.
     void renderFrame(bool force = false);
@@ -114,6 +116,13 @@ private:
 
     void initializeRenderer(RenderingOptions renderingOptions);
 
+    // Compiles one shader pass and looks up the handles the built-in draw loops use. Throws when the program fails.
+    static ShaderChainEntry createShaderChainEntry(const ShaderManager::Pass& pass);
+
+    void renderRegions();
+    void drawBuiltInChain(const std::array<float, 12>& vertices, const std::array<float, 12>& coordinates);
+    void drawPlain(const RegionQuad& quad);
+
 private:
     ShaderManager::Config requestedShaderConfig = ShaderManager::Config {
         ShaderManager::Type::SHADER_DEFAULT
@@ -132,6 +141,8 @@ private:
     std::unique_ptr<PresetChainRenderer> presetRenderer;
     std::optional<std::string> presetError;
     unsigned frameCount = 0;
+    // The nearest default shader for unshaded regions, built on first use.
+    std::optional<ShaderChainEntry> plainShader;
 
     bool immersiveModeEnabled = false;
     ImmersiveMode immersiveMode;

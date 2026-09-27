@@ -19,8 +19,10 @@
 #define LIBRETRODROID_VIDEOLAYOUT_H
 
 #include <array>
+#include <vector>
 
 #include "utils/rect.h"
+#include "screenregion.h"
 
 #define V_ALIGN_CENTER  0
 #define V_ALIGN_TOP     1
@@ -67,6 +69,11 @@ public:
 
     std::pair<float, float> getRelativePosition(float touchX, float touchY);
 
+    // Parts of the frame drawn at places in the viewport (DS screens); empty = the single foreground quad. Rebuilt with
+    // the viewport. Drawn unrotated: no core that uses regions sets a rotation.
+    void updateScreenRegions(std::vector<ScreenRegion> regions);
+    const std::vector<RegionQuad>& getRegionQuads() const { return regionQuads; }
+
 private:
     void updateBuffers();
 
@@ -75,6 +82,8 @@ private:
     void updateBackgroundVertices();
 
     void updateRelativeForegroundBounds();
+
+    void updateRegionQuads();
 
 private:
     std::array<float, 12> foregroundVertices = {
@@ -178,6 +187,8 @@ private:
     float screenOffsetY = 0.0F;
     unsigned contentWidth = 0;
     unsigned contentHeight = 0;
+    std::vector<ScreenRegion> screenRegions;
+    std::vector<RegionQuad> regionQuads;
 };
 
 } // namespace libretrodroid

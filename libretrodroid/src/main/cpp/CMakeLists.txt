@@ -69,6 +69,8 @@ add_library(libretrodroid SHARED
         immersivemode.cpp
         videolayout.h
         videolayout.cpp
+        screenregion.h
+        screenregion.cpp
         renderers/renderer.h
         renderers/renderer.cpp
         renderers/es3/es3utils.h
