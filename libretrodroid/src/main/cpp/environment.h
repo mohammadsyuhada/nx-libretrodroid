@@ -27,6 +27,7 @@
 #include <EGL/egl.h>
 #include <unordered_map>
 #include <array>
+#include <atomic>
 
 #include "../../libretro-common/include/libretro.h"
 #include "log.h"
@@ -102,10 +103,9 @@ public:
     bool isGameGeometryUpdated() const;
     void clearGameGeometryUpdated();
 
-    // Content frame rate from RETRO_ENVIRONMENT_SET_SYSTEM_AV_INFO (0 until a core sends one).
-    double getTimingFps() const;
-    bool isTimingUpdated() const;
-    void clearTimingUpdated();
+    // Content frame rate from RETRO_ENVIRONMENT_SET_SYSTEM_AV_INFO. True once per new report, with its fps in [fps].
+    // Thread-safe: flycast reports it from its emulation thread (spg.cpp CalculateSync) while step() reads it on the GL thread.
+    bool consumeTimingUpdate(double &fps);
 
     std::array<libretrodroid::RumbleState, 4> & getLastRumbleStates();
 
@@ -155,8 +155,9 @@ private:
     unsigned gameGeometryHeight = 0;
     float gameGeometryAspectRatio = -1.0f;
 
-    bool timingUpdated = false;
-    double timingFps = 0.0;
+    // Written by the core's thread (fps, then the flag with release), read by the GL thread (flag with acquire, then fps).
+    std::atomic<bool> timingUpdated { false };
+    std::atomic<double> timingFps { 0.0 };
 
     std::array<libretrodroid::RumbleState, 4> rumbleStates;
 

@@ -76,8 +76,8 @@ void Environment::deinitialize() {
     gameGeometryWidth = 0;
     gameGeometryHeight = 0;
     gameGeometryAspectRatio = -1.0f;
-    timingUpdated = false;
-    timingFps = 0.0;
+    timingUpdated.store(false);
+    timingFps.store(0.0);
 
     rumbleStates.fill(libretrodroid::RumbleState {});
 
@@ -606,11 +606,13 @@ bool Environment::handle_callback_environment(unsigned cmd, void *data) {
         case RETRO_ENVIRONMENT_SET_SYSTEM_AV_INFO: {
             // A new AV info can change the frame rate too: flycast reports half its rate when a game renders every
             // other vblank (its retro_run runs until the game renders), so pacing at the old rate would run it 2x.
+            // TODO: a changed timing.sample_rate is still ignored (Audio keeps the rate it was built with).
             auto *avInfo = static_cast<struct retro_system_av_info *>(data);
             if (avInfo->timing.fps > 1.0 && avInfo->timing.fps <= 240.0) {
-                timingFps = avInfo->timing.fps;
-                timingUpdated = true;
+                timingFps.store(avInfo->timing.fps, std::memory_order_relaxed);
+                timingUpdated.store(true, std::memory_order_release);
             }
+            // Pre-existing race, left as is: the geometry fields below are plain and read on the GL thread.
             gameGeometryHeight = avInfo->geometry.base_height;
             gameGeometryWidth = avInfo->geometry.base_width;
             gameGeometryAspectRatio = avInfo->geometry.aspect_ratio;
@@ -729,16 +731,10 @@ void Environment::clearGameGeometryUpdated() {
     gameGeometryUpdated = false;
 }
 
-double Environment::getTimingFps() const {
-    return timingFps;
-}
-
-bool Environment::isTimingUpdated() const {
-    return timingUpdated;
-}
-
-void Environment::clearTimingUpdated() {
-    timingUpdated = false;
+bool Environment::consumeTimingUpdate(double &fps) {
+    if (!timingUpdated.exchange(false, std::memory_order_acquire)) return false;
+    fps = timingFps.load(std::memory_order_relaxed);
+    return true;
 }
 
 unsigned int Environment::getGameGeometryWidth() const {
