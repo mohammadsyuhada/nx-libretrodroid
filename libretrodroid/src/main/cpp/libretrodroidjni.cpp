@@ -28,6 +28,7 @@
 #include <mutex>
 #include <optional>
 
+#include "gldebug.h"
 #include "libretrodroid.h"
 #include "log.h"
 #include "core.h"
@@ -803,6 +804,14 @@ JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_setRumbleE
     jboolean enabled
 ) {
     LibretroDroid::getInstance().setRumbleEnabled(enabled);
+}
+
+JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_setGlDebugOutput(
+    JNIEnv* env,
+    jclass obj,
+    jboolean enabled
+) {
+    gldebug::setEnabled(enabled);
 }
 
 JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_setFrameSpeed(

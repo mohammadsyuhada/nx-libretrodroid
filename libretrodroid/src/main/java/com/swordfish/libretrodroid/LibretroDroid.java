@@ -116,6 +116,8 @@ public class LibretroDroid {
     public static native void reset();
 
     public static native void setRumbleEnabled(boolean enabled);
+    /** Debug builds: log GL driver messages (GL_KHR_debug, else glGetError) to tag NXGL. Set before create(). */
+    public static native void setGlDebugOutput(boolean enabled);
     public static native void setFrameSpeed(int speed);
     public static native void setAudioEnabled(boolean enabled);
     public static native void setShaderConfig(GLRetroShader shader);

@@ -165,6 +165,7 @@ class GLRetroView(
     @OnLifecycleEvent(Lifecycle.Event.ON_CREATE)
     fun onCreate(lifecycleOwner: LifecycleOwner) = catchExceptions {
         lifecycle = lifecycleOwner.lifecycle
+        LibretroDroid.setGlDebugOutput(data.glDebugOutput)
         LibretroDroid.create(
             openGLESVersion,
             data.coreFilePath,

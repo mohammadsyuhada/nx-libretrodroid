@@ -65,6 +65,8 @@ add_library(libretrodroid SHARED
         core.cpp
         video.h
         video.cpp
+        gldebug.h
+        gldebug.cpp
         immersivemode.h
         immersivemode.cpp
         videolayout.h

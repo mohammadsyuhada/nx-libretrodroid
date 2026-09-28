@@ -24,6 +24,7 @@
 #include <vector>
 #include <unordered_set>
 
+#include "gldebug.h"
 #include "libretrodroid.h"
 #include "utils/libretrodroidexception.h"
 #include "log.h"
@@ -509,6 +510,7 @@ void LibretroDroid::step() {
     auto& achievements = Achievements::getInstance();
     for (size_t i = 0; i < frames * speed; i++) {
         core->retro_run();
+        gldebug::pollErrors();
         if (achievements.isEnabled()) achievements.onFrame(false);
     }
     if (speed == 0 && achievements.isEnabled()) achievements.onFrame(true);   // menu open: keep the session alive
@@ -628,6 +630,7 @@ void LibretroDroid::handleVideoRefresh(
 ) {
     // A duplicate frame (data == nullptr) says nothing about how the core renders.
     if (data != nullptr) hardwareFrame.store(data == RETRO_HW_FRAME_BUFFER_VALID);
+    gldebug::onVideoRefresh(data, width, height, video ? (unsigned) video->getCurrentFramebuffer() : 0);
 
     if (video) {
         video->onNewFrame(data, width, height, pitch);
@@ -639,6 +642,7 @@ void LibretroDroid::handleVideoRefresh(
 }
 
 size_t LibretroDroid::handleAudioCallback(const int16_t *data, size_t frames) {
+    gldebug::onAudio(data, frames);
     if (audio && audioEnabled) {
         audio->write(data, frames);
     }

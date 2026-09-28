@@ -48,6 +48,7 @@ JNIEXPORT jint JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_availableD
 JNIEXPORT jint JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_currentDisk(JNIEnv* env, jclass obj);
 JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_changeDisk(JNIEnv* env, jclass obj, jint index);
 JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_setRumbleEnabled(JNIEnv* env, jclass obj, jboolean enabled);
+JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_setGlDebugOutput(JNIEnv* env, jclass obj, jboolean enabled);
 JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_setFrameSpeed(JNIEnv* env, jclass obj, jint speed);
 JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_setAudioEnabled(JNIEnv* env, jclass obj, jboolean enabled);
 JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_setShaderChain(JNIEnv* env, jclass obj, jobjectArray sources, jintArray filterLinear, jintArray wrap, jintArray scaleTypeX, jintArray scaleTypeY, jfloatArray scaleX, jfloatArray scaleY, jintArray frameCountMod, jobjectArray alias, jobjectArray lutIds, jintArray lutWidth, jintArray lutHeight, jobjectArray lutRgba, jbooleanArray lutLinear, jintArray lutWrap, jobjectArray paramIds, jfloatArray paramValues);

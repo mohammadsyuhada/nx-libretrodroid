@@ -28,6 +28,7 @@
 #include "log.h"
 
 #include "video.h"
+#include "gldebug.h"
 #include "renderers/es3/framebufferrenderer.h"
 #include "renderers/es3/imagerendereres3.h"
 #include "renderers/es2/imagerendereres2.h"
@@ -518,7 +519,7 @@ Video::Video(
     printGLString("Vendor", GL_VENDOR);
     printGLString("Renderer", GL_RENDERER);
     printGLString("Extensions", GL_EXTENSIONS);
-    initializeGLESLogCallbackIfNeeded();
+    gldebug::install();
 
     LOGI("Initializing graphics");
 

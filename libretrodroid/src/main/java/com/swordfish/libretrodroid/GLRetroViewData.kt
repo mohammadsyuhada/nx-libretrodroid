@@ -35,6 +35,8 @@ class GLRetroViewData(context: Context) {
     var skipDuplicateFrames: Boolean = false
     var enableMicrophone: Boolean = false
     var immersiveMode: ImmersiveMode? = null
+    /** Debug builds only: log GL driver messages to tag NXGL (GL_KHR_debug callback, else glGetError polling). */
+    var glDebugOutput: Boolean = false
 }
 
 enum class ViewportAlignment(val value: Int) {
