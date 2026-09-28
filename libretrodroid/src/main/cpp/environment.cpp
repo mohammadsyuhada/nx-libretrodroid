@@ -76,6 +76,8 @@ void Environment::deinitialize() {
     gameGeometryWidth = 0;
     gameGeometryHeight = 0;
     gameGeometryAspectRatio = -1.0f;
+    timingUpdated = false;
+    timingFps = 0.0;
 
     rumbleStates.fill(libretrodroid::RumbleState {});
 
@@ -601,8 +603,21 @@ bool Environment::handle_callback_environment(unsigned cmd, void *data) {
             LOGD("Called RETRO_ENVIRONMENT_GET_PERF_INTERFACE");
             return false;
 
-            // TODO... RETRO_ENVIRONMENT_SET_SYSTEM_AV_INFO can also change frame-rate
-        case RETRO_ENVIRONMENT_SET_SYSTEM_AV_INFO:
+        case RETRO_ENVIRONMENT_SET_SYSTEM_AV_INFO: {
+            // A new AV info can change the frame rate too: flycast reports half its rate when a game renders every
+            // other vblank (its retro_run runs until the game renders), so pacing at the old rate would run it 2x.
+            auto *avInfo = static_cast<struct retro_system_av_info *>(data);
+            if (avInfo->timing.fps > 1.0 && avInfo->timing.fps <= 240.0) {
+                timingFps = avInfo->timing.fps;
+                timingUpdated = true;
+            }
+            gameGeometryHeight = avInfo->geometry.base_height;
+            gameGeometryWidth = avInfo->geometry.base_width;
+            gameGeometryAspectRatio = avInfo->geometry.aspect_ratio;
+            gameGeometryUpdated = true;
+            return true;
+        }
+
         case RETRO_ENVIRONMENT_SET_GEOMETRY: {
             struct retro_game_geometry *geometry = static_cast<struct retro_game_geometry *>(data);
             gameGeometryHeight = geometry->base_height;
@@ -712,6 +727,18 @@ bool Environment::isGameGeometryUpdated() const {
 
 void Environment::clearGameGeometryUpdated() {
     gameGeometryUpdated = false;
+}
+
+double Environment::getTimingFps() const {
+    return timingFps;
+}
+
+bool Environment::isTimingUpdated() const {
+    return timingUpdated;
+}
+
+void Environment::clearTimingUpdated() {
+    timingUpdated = false;
 }
 
 unsigned int Environment::getGameGeometryWidth() const {

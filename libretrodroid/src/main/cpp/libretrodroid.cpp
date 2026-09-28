@@ -19,6 +19,7 @@
 
 #include <EGL/egl.h>
 
+#include <cmath>
 #include <string>
 #include <utility>
 #include <vector>
@@ -533,6 +534,18 @@ void LibretroDroid::step() {
 
     if (fpsSync) {
         fpsSync->wait();
+    }
+
+    // A core that changed its frame rate mid-game (SET_SYSTEM_AV_INFO) is paced at the new rate from the next step.
+    // Swapped after wait(): a fresh FPSSync has no start time until advanceFrames(), and sleep_until(min) never returns.
+    // Audio keeps its stream: the sample rate is unchanged and its rate controller absorbs the vsync stretch change.
+    if (fpsSync && Environment::getInstance().isTimingUpdated()) {
+        Environment::getInstance().clearTimingUpdated();
+        double fps = Environment::getInstance().getTimingFps();
+        if (std::abs(fps - fpsSync->getContentRefreshRate()) > 0.01) {
+            LOGI("Core changed its frame rate from %f to %f", fpsSync->getContentRefreshRate(), fps);
+            fpsSync = std::make_unique<FPSSync>(fps, screenRefreshRate);
+        }
     }
 
     if (rumble && rumbleEnabled) {

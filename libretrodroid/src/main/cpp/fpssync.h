@@ -35,6 +35,7 @@ public:
     unsigned advanceFrames();
     void wait();
     double getTimeStretchFactor();
+    double getContentRefreshRate() const { return contentRefreshRate; }
 private:
 
     double screenRefreshRate;

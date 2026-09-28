@@ -102,6 +102,11 @@ public:
     bool isGameGeometryUpdated() const;
     void clearGameGeometryUpdated();
 
+    // Content frame rate from RETRO_ENVIRONMENT_SET_SYSTEM_AV_INFO (0 until a core sends one).
+    double getTimingFps() const;
+    bool isTimingUpdated() const;
+    void clearTimingUpdated();
+
     std::array<libretrodroid::RumbleState, 4> & getLastRumbleStates();
 
     const std::vector<struct Variable> getVariables() const;
@@ -149,6 +154,9 @@ private:
     unsigned gameGeometryWidth = 0;
     unsigned gameGeometryHeight = 0;
     float gameGeometryAspectRatio = -1.0f;
+
+    bool timingUpdated = false;
+    double timingFps = 0.0;
 
     std::array<libretrodroid::RumbleState, 4> rumbleStates;
 
