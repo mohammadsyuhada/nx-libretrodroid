@@ -37,6 +37,11 @@ class GLRetroViewData(context: Context) {
     var immersiveMode: ImmersiveMode? = null
     /** Debug builds only: log GL driver messages to tag NXGL (GL_KHR_debug callback, else glGetError polling). */
     var glDebugOutput: Boolean = false
+    /**
+     * libretro device type per port (e.g. 1 = RETRO_DEVICE_JOYPAD), applied with retro_set_controller_port_device
+     * after the game loads and before the first retro_run, so a core that reads its pads at boot sees them.
+     */
+    var controllerPorts: Map<Int, Int> = emptyMap()
 }
 
 enum class ViewportAlignment(val value: Int) {

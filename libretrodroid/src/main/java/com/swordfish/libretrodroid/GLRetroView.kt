@@ -545,6 +545,8 @@ class GLRetroView(
             data.gameFileBytes != null -> loadGameFromBytes(data.gameFileBytes!!)
             data.gameVirtualFiles.isNotEmpty() -> loadGameFromVirtualFiles(data.gameVirtualFiles)
         }
+        // After load, before the first retro_run: cores such as flycast only plug a pad in at that point.
+        data.controllerPorts.forEach { (port, type) -> LibretroDroid.setControllerType(port, type) }
         data.saveRAMState?.let {
             LibretroDroid.unserializeSRAM(data.saveRAMState)
             data.saveRAMState = null
