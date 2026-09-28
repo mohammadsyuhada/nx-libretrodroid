@@ -228,15 +228,15 @@ void Input::onTriggerEvent(unsigned int port, float l2, float r2) {
     pads[port].r2Analog = toRange(r2);
 }
 
-// Pressure of an analog button (RETRO_DEVICE_INDEX_ANALOG_BUTTON). Only L2/R2 carry analog values; everything else,
-// and L2/R2 before the host sent a trigger value, answers the digital state (pressed = full range).
+// Pressure of an analog button (RETRO_DEVICE_INDEX_ANALOG_BUTTON). Only L2/R2 carry analog values, and a non-zero one
+// wins over the key (pads that also send KEYCODE_BUTTON_L2/R2 on a light pull keep their partial values); otherwise the
+// digital state answers (pressed = full range), which covers the on-screen pad and digital-only triggers.
 int16_t Input::analogButtonState(unsigned int port, unsigned int id) const {
     int analog = -1;
     if (id == RETRO_DEVICE_ID_JOYPAD_L2) analog = pads[port].l2Analog;
     if (id == RETRO_DEVICE_ID_JOYPAD_R2) analog = pads[port].r2Analog;
-    bool digital = anyPressed(port, id);
-    if (digital) return (int16_t) MAX_RANGE_MOTION;
-    return (int16_t) (analog > 0 ? analog : 0);
+    if (analog > 0) return (int16_t) analog;
+    return (int16_t) (anyPressed(port, id) ? MAX_RANGE_MOTION : 0);
 }
 
 template<typename... T>

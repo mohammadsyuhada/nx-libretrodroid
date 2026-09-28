@@ -271,8 +271,8 @@ class GLRetroView(
     }
 
     /**
-     * Analog L2/R2 pressure (0..1) for cores that read RETRO_DEVICE_INDEX_ANALOG_BUTTON. Until the first call a
-     * port's triggers answer from the digital L2/R2 keys; a pressed digital key always reads as full.
+     * Analog L2/R2 pressure (0..1) for cores that read RETRO_DEVICE_INDEX_ANALOG_BUTTON. A non-zero value wins over
+     * the L2/R2 key; at 0 (or before the first call) a pressed key reads as full.
      */
     fun sendTriggers(port: Int, l2: Float, r2: Float) {
         queueEvent { LibretroDroid.onTriggerEvent(port, l2, r2) }
