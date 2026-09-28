@@ -217,9 +217,13 @@ void Video::renderFrame(bool force) {
 
     drawFrame(force);
 
-    glBindVertexArray(vertexArray);
+    // Re-bind the core's objects only while they still exist: binding a deleted vertex array raises
+    // GL_INVALID_OPERATION (and a deleted buffer name would be silently re-created as a fresh, empty buffer).
+    GLuint savedVertexArray = static_cast<GLuint>(vertexArray);
+    GLuint savedArrayBuffer = static_cast<GLuint>(arrayBuffer);
+    glBindVertexArray(savedVertexArray != 0 && glIsVertexArray(savedVertexArray) ? savedVertexArray : 0);
     glColorMask(colorMask[0], colorMask[1], colorMask[2], colorMask[3]);
-    glBindBuffer(GL_ARRAY_BUFFER, arrayBuffer);
+    glBindBuffer(GL_ARRAY_BUFFER, savedArrayBuffer != 0 && glIsBuffer(savedArrayBuffer) ? savedArrayBuffer : 0);
     if (scissor) glEnable(GL_SCISSOR_TEST);
     if (blend) glEnable(GL_BLEND);
     if (stencil) glEnable(GL_STENCIL_TEST);
