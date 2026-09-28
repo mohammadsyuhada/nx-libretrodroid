@@ -38,6 +38,9 @@ private:
         float joypadRightYAxis = 0;
         float pointerScreenXAxis = -1;
         float pointerScreenYAxis = -1;
+        // Analog trigger values 0..MAX_RANGE_MOTION; -1 until the host sends one (then the digital L2/R2 answers).
+        int l2Analog = -1;
+        int r2Analog = -1;
     };
 
 public:
@@ -56,6 +59,7 @@ public:
 
     void onKeyEvent(unsigned int port, int action, int keyCode);
     void onMotionEvent(int port, int motionSource, float xAxis, float yAxis);
+    void onTriggerEvent(unsigned int port, float l2, float r2);
 
 private:
     const int UNKNOWN_KEY = -1;
@@ -64,6 +68,7 @@ private:
     bool anyPressed(unsigned int port, unsigned int id, T&... args) const;
     bool anyPressed(unsigned int port, unsigned int id) const;
     int convertAndroidToLibretroKey(int keyCode) const;
+    int16_t analogButtonState(unsigned int port, unsigned int id) const;
 
     GamePadState pads[4];
 };

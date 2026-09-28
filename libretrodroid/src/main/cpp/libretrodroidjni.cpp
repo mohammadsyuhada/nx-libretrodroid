@@ -557,6 +557,16 @@ JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_onTouchEve
     LibretroDroid::getInstance().onTouchEvent(xAxis, yAxis);
 }
 
+JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_onTriggerEvent(
+    JNIEnv* env,
+    jclass obj,
+    jint port,
+    jfloat l2,
+    jfloat r2
+) {
+    LibretroDroid::getInstance().onTriggerEvent(port, l2, r2);
+}
+
 JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_onKeyEvent(
     JNIEnv* env,
     jclass obj,

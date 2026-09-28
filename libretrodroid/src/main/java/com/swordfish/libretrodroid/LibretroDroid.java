@@ -163,6 +163,9 @@ public class LibretroDroid {
 
     public static native void onKeyEvent(int port, int action, int keyCode);
 
+    /** Analog trigger pressure 0..1 for L2/R2, answered to RETRO_DEVICE_INDEX_ANALOG_BUTTON reads. */
+    public static native void onTriggerEvent(int port, float l2, float r2);
+
     public static native void refreshAspectRatio();
 
     public static native Controller[][] getControllers();

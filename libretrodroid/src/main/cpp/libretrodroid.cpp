@@ -253,6 +253,13 @@ void LibretroDroid::onTouchEvent(float xAxis, float yAxis) {
     }
 }
 
+void LibretroDroid::onTriggerEvent(unsigned int port, float l2, float r2) {
+    LOGD("Received trigger event: %d %.2f, %.2f", port, l2, r2);
+    if (input) {
+        input->onTriggerEvent(port, l2, r2);
+    }
+}
+
 void LibretroDroid::onKeyEvent(unsigned int port, int action, int keyCode) {
     LOGD("Received key event with action (%d) and keycode (%d)", action, keyCode);
     if (input) {

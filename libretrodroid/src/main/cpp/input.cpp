@@ -97,6 +97,8 @@ int16_t Input::getInputState(unsigned port, unsigned device, unsigned index, uns
                         default:
                             return 0;
                     }
+                case RETRO_DEVICE_INDEX_ANALOG_BUTTON:
+                    return analogButtonState(port, id);
                 default:
                     return 0;
             }
@@ -213,6 +215,28 @@ void Input::onMotionEvent(int port, int motionSource, float xAxis, float yAxis) 
             pads[port].pointerScreenYAxis = yAxis;
             break;
     }
+}
+
+void Input::onTriggerEvent(unsigned int port, float l2, float r2) {
+    if (port >= 4) return;
+    auto toRange = [](float v) {
+        if (!(v > 0.0f)) return 0;  // also catches NaN
+        if (v >= 1.0f) return MAX_RANGE_MOTION;
+        return (int) lroundf(v * MAX_RANGE_MOTION);
+    };
+    pads[port].l2Analog = toRange(l2);
+    pads[port].r2Analog = toRange(r2);
+}
+
+// Pressure of an analog button (RETRO_DEVICE_INDEX_ANALOG_BUTTON). Only L2/R2 carry analog values; everything else,
+// and L2/R2 before the host sent a trigger value, answers the digital state (pressed = full range).
+int16_t Input::analogButtonState(unsigned int port, unsigned int id) const {
+    int analog = -1;
+    if (id == RETRO_DEVICE_ID_JOYPAD_L2) analog = pads[port].l2Analog;
+    if (id == RETRO_DEVICE_ID_JOYPAD_R2) analog = pads[port].r2Analog;
+    bool digital = anyPressed(port, id);
+    if (digital) return (int16_t) MAX_RANGE_MOTION;
+    return (int16_t) (analog > 0 ? analog : 0);
 }
 
 template<typename... T>

@@ -109,6 +109,7 @@ public:
     void onKeyEvent(unsigned int port, int action, int keyCode);
     void onMotionEvent(unsigned int port, unsigned int source, float xAxis, float yAxis);
     void onTouchEvent(float xAxis, float yAxis);
+    void onTriggerEvent(unsigned int port, float l2, float r2);
 
     void refreshAspectRatio();
     float getAspectRatio();
