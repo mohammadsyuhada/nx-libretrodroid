@@ -28,12 +28,23 @@ void Achievements::disable() {
     if (!client) return;
     rc_client_destroy(client);
     client = nullptr;
-    if (regionsReady) { rc_libretro_memory_destroy(&regions); regionsReady = false; }
+    regions.invalidate();
     failPendingCallbacks();
     std::lock_guard<std::mutex> lock(queueLock);
     responses.clear();
     outgoingCalls.clear();
     events.clear();
+}
+
+void Achievements::resetSession(bool keepEnabled) {
+    bool wasEnabled = isEnabled();
+    unloadGame();
+    disable();
+    setCoreMemoryAccessors(nullptr, nullptr);
+    setMemoryMap(nullptr);
+    regionsInitTried = false;
+    consoleId = 0;
+    if (keepEnabled && wasEnabled) enable();
 }
 
 void Achievements::failPendingCallbacks() {
@@ -42,7 +53,14 @@ void Achievements::failPendingCallbacks() {
     pending.clear();
 }
 
+void Achievements::invalidateMemoryRegions() {
+    // The table points into the core's memory as the old accessors / map described it: never read it again.
+    regions.invalidate();
+    regionsInitTried = false;
+}
+
 void Achievements::setMemoryMap(const struct retro_memory_map* map) {
+    invalidateMemoryRegions();
     descriptors.clear();
     descriptorStrings.clear();
     if (!map || !map->descriptors || map->num_descriptors == 0) { haveMemoryMap = false; return; }
@@ -60,6 +78,7 @@ void Achievements::setMemoryMap(const struct retro_memory_map* map) {
 }
 
 void Achievements::setCoreMemoryAccessors(size_t (*getSize)(unsigned), void* (*getData)(unsigned)) {
+    invalidateMemoryRegions();
     coreGetMemorySize = getSize;
     coreGetMemoryData = getData;
 }
@@ -71,10 +90,8 @@ void Achievements::coreMemoryInfo(uint32_t id, rc_libretro_core_memory_info_t* i
 }
 
 void Achievements::initMemoryRegions() {
-    if (regionsReady) { rc_libretro_memory_destroy(&regions); regionsReady = false; }
-    if (rc_libretro_memory_init(&regions, haveMemoryMap ? &memoryMap : nullptr, coreMemoryInfo, consoleId)) {
-        regionsReady = true;
-        LOGI("achievements: %u memory regions, %zu bytes", regions.count, regions.total_size);
+    if (regions.build(haveMemoryMap ? &memoryMap : nullptr, coreMemoryInfo, consoleId)) {
+        LOGI("achievements: %u memory regions, %zu bytes", regions.count(), regions.totalSize());
     } else {
         LOGW("achievements: rc_libretro_memory_init failed for console %u; using raw SYSTEM_RAM", consoleId);
     }
@@ -82,13 +99,13 @@ void Achievements::initMemoryRegions() {
 
 uint32_t Achievements::readMemory(uint32_t address, uint8_t* buffer, uint32_t numBytes, rc_client_t*) {
     auto& self = getInstance();
-    if (!self.regionsReady && !self.regionsInitTried) {
+    if (!self.regions.ready() && !self.regionsInitTried) {
         // rc_client validates every achievement address before the load callback runs; never answer those
         // reads from the raw SYSTEM_RAM fallback when a region table can be built (mirrors RetroArch).
         self.regionsInitTried = true;
         self.initMemoryRegions();
     }
-    if (self.regionsReady) return rc_libretro_memory_read(&self.regions, address, buffer, numBytes);
+    if (self.regions.ready()) return self.regions.read(address, buffer, numBytes);
     // Fallback (nx-redux ra_integration.c): raw system RAM, then save RAM, with an overflow-safe bounds check.
     for (unsigned id : { (unsigned) RETRO_MEMORY_SYSTEM_RAM, (unsigned) RETRO_MEMORY_SAVE_RAM }) {
         if (!self.coreGetMemoryData || !self.coreGetMemorySize) break;
@@ -257,7 +274,7 @@ void Achievements::loadGameCallback(int result, const char* errorMessage, rc_cli
 void Achievements::unloadGame() {
     if (!client) return;
     rc_client_unload_game(client);
-    if (regionsReady) { rc_libretro_memory_destroy(&regions); regionsReady = false; }
+    regions.invalidate();
     regionsInitTried = false;
 }
 

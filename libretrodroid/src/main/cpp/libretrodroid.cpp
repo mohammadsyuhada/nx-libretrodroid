@@ -276,6 +276,15 @@ void LibretroDroid::create(
 ) {
     LOGD("Performing libretrodroid create");
 
+    {
+        // Achievements is a process-wide singleton that outlives a session: a previous view that was only stopped
+        // (never destroyed) leaves its client, loaded game and region table here, all pointing into the core about to
+        // be released. Drop them first so no later step() reads through the old core's memory. The host enables
+        // achievements before the view exists, so an enabled client is replaced by a fresh one, not dropped.
+        std::lock_guard<std::mutex> lock(coreLock);
+        Achievements::getInstance().resetSession(true);
+    }
+
     // Before resetGlobalVariables(), which would otherwise dlclose a leftover core without retro_deinit().
     releaseCore();
 
@@ -284,8 +293,6 @@ void LibretroDroid::create(
     Environment::getInstance().initialize(systemDir, savesDir, &callback_get_current_framebuffer);
     // A failed load never reaches destroy(); releaseCore() above deinitialised its core, drop its VFS files too.
     VFS::getInstance().deinitialize();
-    // Nor its memory map, whose descriptors point into the previous (now unloaded) core.
-    Achievements::getInstance().setMemoryMap(nullptr);
     Environment::getInstance().setLanguage(language);
     Environment::getInstance().setEnableVirtualFileSystem(enableVirtualFileSystem);
     Environment::getInstance().setEnableMicrophone(enableMicrophone);
@@ -450,9 +457,7 @@ void LibretroDroid::destroy() {
         Environment::getInstance().getHwContextDestroy()();
     }
 
-    Achievements::getInstance().unloadGame();
-    Achievements::getInstance().disable();   // under coreLock: no later step() can touch a client of a destroyed view
-    Achievements::getInstance().setCoreMemoryAccessors(nullptr, nullptr);
+    Achievements::getInstance().resetSession(false);   // under coreLock: no later step() can touch a client of a destroyed view
 
     releaseCore();
 

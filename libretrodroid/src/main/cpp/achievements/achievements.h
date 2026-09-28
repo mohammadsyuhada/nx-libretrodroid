@@ -10,6 +10,7 @@
 #include "libretro.h"
 #include "rc_client.h"
 #include "rc_libretro.h"
+#include "memoryregiontable.h"
 
 namespace libretrodroid {
 
@@ -60,7 +61,16 @@ public:
     void enable();
     void disable();
     bool isEnabled() const { return client != nullptr; }
+    /**
+     * Back to a clean slate for a new native session: unloads the game, destroys the client and forgets the core's
+     * memory accessors, memory map and region table. Call it before the previous core is unloaded; this singleton
+     * outlives LibretroDroid sessions. With keepEnabled a client that was enabled is replaced by a fresh one (no user,
+     * no game): the host enables achievements before the view, and so the native session, exists.
+     */
+    void resetSession(bool keepEnabled);
+    bool memoryRegionsReady() const { return regions.ready(); }
 
+    /** Either change invalidates the region table; readMemory rebuilds it lazily from the current inputs. */
     void setMemoryMap(const struct retro_memory_map* map);
     void setCoreMemoryAccessors(size_t (*getSize)(unsigned), void* (*getData)(unsigned));
 
@@ -97,6 +107,7 @@ private:
     static void coreMemoryInfo(uint32_t id, rc_libretro_core_memory_info_t* info);
 
     void initMemoryRegions();
+    void invalidateMemoryRegions();
     void pushEvent(AchievementEvent e);
     void failPendingCallbacks();
 
@@ -106,9 +117,8 @@ private:
     std::vector<std::string> descriptorStrings;
     struct retro_memory_map memoryMap {};
     bool haveMemoryMap = false;
-    rc_libretro_memory_regions_t regions {};
-    bool regionsReady = false;
-    bool regionsInitTried = false;   // readMemory's lazy init runs at most once per loadGame
+    MemoryRegionTable regions;
+    bool regionsInitTried = false;   // readMemory's lazy init runs at most once per loadGame / invalidation
     uint32_t consoleId = 0;
     size_t (*coreGetMemorySize)(unsigned) = nullptr;
     void* (*coreGetMemoryData)(unsigned) = nullptr;
