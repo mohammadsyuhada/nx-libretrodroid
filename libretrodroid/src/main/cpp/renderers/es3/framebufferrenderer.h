@@ -51,8 +51,17 @@ private:
     bool depth = false;
     bool stencil = false;
 
-    unsigned int width;
-    unsigned int height;
+    // The framebuffer's size: see updateSize().
+    unsigned int width = 0;
+    unsigned int height = 0;
+    unsigned int baseWidth = 0;
+    unsigned int baseHeight = 0;
+    unsigned int largestFrameWidth = 0;
+    unsigned int largestFrameHeight = 0;
+    unsigned int maxSize = 1;
+
+    // Recomputes width x height; true when it changed.
+    bool updateSize();
 
     bool isDirty = false;
 

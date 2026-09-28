@@ -98,9 +98,6 @@ public:
 
     unsigned int getGameGeometryWidth() const;
     unsigned int getGameGeometryHeight() const;
-    // The largest frame the core may render (0 until a SET_SYSTEM_AV_INFO): a GL core's framebuffer is sized to it.
-    unsigned int getGameGeometryMaxWidth() const;
-    unsigned int getGameGeometryMaxHeight() const;
     float getGameGeometryAspectRatio() const;
     bool isGameGeometryUpdated() const;
     void clearGameGeometryUpdated();
@@ -151,8 +148,6 @@ private:
     bool gameGeometryUpdated = false;
     unsigned gameGeometryWidth = 0;
     unsigned gameGeometryHeight = 0;
-    unsigned gameGeometryMaxWidth = 0;
-    unsigned gameGeometryMaxHeight = 0;
     float gameGeometryAspectRatio = -1.0f;
 
     std::array<libretrodroid::RumbleState, 4> rumbleStates;

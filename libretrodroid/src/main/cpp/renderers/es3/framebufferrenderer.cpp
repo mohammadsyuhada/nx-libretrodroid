@@ -16,6 +16,8 @@
  */
 
 #include "framebufferrenderer.h"
+
+#include <algorithm>
 #include "es3utils.h"
 #include "../../log.h"
 
@@ -44,15 +46,42 @@ FramebufferRenderer::FramebufferRenderer(
 ) {
     this->depth = depth;
     this->stencil = stencil;
-    this->width = width;
-    this->height = height;
+    this->baseWidth = width;
+    this->baseHeight = height;
     this->shaders = std::move(shaders);
 
+    // Both limits bind: the colour texture and the depth/stencil renderbuffer share the size.
+    GLint maxTexture = 0, maxRenderbuffer = 0;
+    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTexture);
+    glGetIntegerv(GL_MAX_RENDERBUFFER_SIZE, &maxRenderbuffer);
+    maxSize = (unsigned) std::max(1, std::min(maxTexture, maxRenderbuffer));
+
+    updateSize();
+    isDirty = false;
     initializeBuffers();
+}
+
+bool FramebufferRenderer::updateSize() {
+    // max(base geometry, the largest frame delivered), clamped to what the GPU allows. Not max_width/max_height: cores
+    // report huge ones (melonDS DS 8198x4608 over every layout at 8x, flycast a square of its widest render size).
+    unsigned newWidth = std::min(std::max(baseWidth, largestFrameWidth), maxSize);
+    unsigned newHeight = std::min(std::max(baseHeight, largestFrameHeight), maxSize);
+    if (newWidth == width && newHeight == height) return false;
+    width = newWidth;
+    height = newHeight;
+    return true;
 }
 
 void FramebufferRenderer::onNewFrame(const void *data, unsigned width, unsigned height, size_t pitch) {
     Renderer::onNewFrame(data, width, height, pitch);
+
+    // A frame larger than the framebuffer grows it. The core has already drawn this one (clipped) into the old
+    // framebuffer, so one frame shows blank; the next draws into the new one.
+    if (data != nullptr && (width > largestFrameWidth || height > largestFrameHeight)) {
+        largestFrameWidth = std::max(largestFrameWidth, width);
+        largestFrameHeight = std::max(largestFrameHeight, height);
+        if (updateSize()) isDirty = true;
+    }
 
     if (isDirty) {
         initializeBuffers();
@@ -61,6 +90,8 @@ void FramebufferRenderer::onNewFrame(const void *data, unsigned width, unsigned 
 }
 
 void FramebufferRenderer::initializeBuffers() {
+    LOGI("Core framebuffer %u x %u (base %u x %u, largest frame %u x %u, GL limit %u)",
+         width, height, baseWidth, baseHeight, largestFrameWidth, largestFrameHeight, maxSize);
     framebuffers = ES3Utils::buildShaderPasses(width, height, shaders);
 
     ES3Utils::deleteFramebuffer(std::move(framebuffer));
@@ -87,11 +118,9 @@ void FramebufferRenderer::setPixelFormat(int pixelFormat) {
 }
 
 void FramebufferRenderer::updateRenderedResolution(unsigned int width, unsigned int height) {
-    if (this->width != width || this->height != height) {
-        this->width = width;
-        this->height = height;
-        isDirty = true;
-    }
+    baseWidth = width;
+    baseHeight = height;
+    if (updateSize()) isDirty = true;
 }
 
 bool FramebufferRenderer::rendersInVideoCallback() {

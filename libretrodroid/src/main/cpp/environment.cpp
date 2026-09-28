@@ -75,8 +75,6 @@ void Environment::deinitialize() {
     gameGeometryUpdated = false;
     gameGeometryWidth = 0;
     gameGeometryHeight = 0;
-    gameGeometryMaxWidth = 0;
-    gameGeometryMaxHeight = 0;
     gameGeometryAspectRatio = -1.0f;
 
     rumbleStates.fill(libretrodroid::RumbleState {});
@@ -609,11 +607,6 @@ bool Environment::handle_callback_environment(unsigned cmd, void *data) {
             struct retro_game_geometry *geometry = static_cast<struct retro_game_geometry *>(data);
             gameGeometryHeight = geometry->base_height;
             gameGeometryWidth = geometry->base_width;
-            // Only a new AV info may change the maximum frame size; SET_GEOMETRY's max fields are ignored (libretro.h).
-            if (cmd == RETRO_ENVIRONMENT_SET_SYSTEM_AV_INFO) {
-                gameGeometryMaxWidth = geometry->max_width;
-                gameGeometryMaxHeight = geometry->max_height;
-            }
             gameGeometryAspectRatio = geometry->aspect_ratio;
             gameGeometryUpdated = true;
             return true;
@@ -727,14 +720,6 @@ unsigned int Environment::getGameGeometryWidth() const {
 
 unsigned int Environment::getGameGeometryHeight() const {
     return gameGeometryHeight;
-}
-
-unsigned int Environment::getGameGeometryMaxWidth() const {
-    return gameGeometryMaxWidth;
-}
-
-unsigned int Environment::getGameGeometryMaxHeight() const {
-    return gameGeometryMaxHeight;
 }
 
 float Environment::getGameGeometryAspectRatio() const {

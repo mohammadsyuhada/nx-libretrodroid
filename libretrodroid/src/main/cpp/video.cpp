@@ -241,6 +241,7 @@ void Video::drawFrame(bool force) {
     glClearColor(0.0F, 0.0F, 0.0F, 1.0F);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+    // Immersive mode's blurred background samples the whole texture, not the frame's sub-rectangle (frameCoordinates).
     if (immersiveModeEnabled) {
         immersiveMode.renderBackground(
             videoLayout.getScreenWidth(),
@@ -514,9 +515,9 @@ void Video::updateViewportAlignment(unsigned int viewportAlignment) {
     videoLayout.updateViewportAlignment(viewportAlignment);
 }
 
-void Video::updateRendererSize(unsigned int width, unsigned int height, unsigned int textureWidth, unsigned int textureHeight) {
-    LOGD("Updating renderer size: %d x %d (texture %d x %d)", width, height, textureWidth, textureHeight);
-    renderer->updateRenderedResolution(textureWidth, textureHeight);
+void Video::updateRendererSize(unsigned int width, unsigned int height) {
+    LOGD("Updating renderer size: %d x %d", width, height);
+    renderer->updateRenderedResolution(width, height);
     videoLayout.updateContentSize(width, height);
 }
 

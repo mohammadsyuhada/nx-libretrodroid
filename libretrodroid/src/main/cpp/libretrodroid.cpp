@@ -23,7 +23,6 @@
 #include <utility>
 #include <vector>
 #include <unordered_set>
-#include <algorithm>
 
 #include "gldebug.h"
 #include "libretrodroid.h"
@@ -198,15 +197,10 @@ void LibretroDroid::onSurfaceCreated() {
 
     video = nullptr;
 
-    // A GL core renders its frames, up to max_width x max_height, into this framebuffer: size it to hold the largest
-    // (libretro's contract; flycast's base is always 640x480 whatever its internal resolution).
-    hwFramebufferWidth = std::max(system_av_info.geometry.base_width, system_av_info.geometry.max_width);
-    hwFramebufferHeight = std::max(system_av_info.geometry.base_height, system_av_info.geometry.max_height);
-
     Video::RenderingOptions renderingOptions {
         Environment::getInstance().isUseHwAcceleration(),
-        hwFramebufferWidth,
-        hwFramebufferHeight,
+        system_av_info.geometry.base_width,
+        system_av_info.geometry.base_height,
         Environment::getInstance().isUseDepth(),
         Environment::getInstance().isUseStencil(),
         openglESVersion,
@@ -549,17 +543,9 @@ void LibretroDroid::step() {
     if (video && Environment::getInstance().isGameGeometryUpdated()) {
         Environment::getInstance().clearGameGeometryUpdated();
 
-        auto& environment = Environment::getInstance();
-        // A new AV info may raise the maximum frame size (flycast, when its render size grows).
-        if (environment.getGameGeometryMaxWidth() > 0 && environment.getGameGeometryMaxHeight() > 0) {
-            hwFramebufferWidth = environment.getGameGeometryMaxWidth();
-            hwFramebufferHeight = environment.getGameGeometryMaxHeight();
-        }
         video->updateRendererSize(
-            environment.getGameGeometryWidth(),
-            environment.getGameGeometryHeight(),
-            std::max(environment.getGameGeometryWidth(), hwFramebufferWidth),
-            std::max(environment.getGameGeometryHeight(), hwFramebufferHeight)
+            Environment::getInstance().getGameGeometryWidth(),
+            Environment::getInstance().getGameGeometryHeight()
         );
         geometryWidth = (float) Environment::getInstance().getGameGeometryWidth();
         geometryHeight = (float) Environment::getInstance().getGameGeometryHeight();

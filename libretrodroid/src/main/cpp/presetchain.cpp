@@ -569,6 +569,9 @@ void PresetChainRenderer::render(
         }
 
         bindAttrib(pass.vertexCoord, pass.toScreen ? foreground : screenQuad);
+        // Only pass 0 reads sourceCoords (the frame's part of the texture). Later passes use identity coords: right for
+        // earlier passes' outputs, but a later pass that samples Original (the core texture) sees the whole texture,
+        // not the frame's sub-rectangle, so it is misaligned when a GL core's frame is smaller than its framebuffer.
         auto& coords = i == 0 ? sourceCoords : identityCoords;
         for (GLint location : pass.texCoords) bindAttrib(location, coords);
         bindAttrib(pass.lutTexCoord, identityCoords);

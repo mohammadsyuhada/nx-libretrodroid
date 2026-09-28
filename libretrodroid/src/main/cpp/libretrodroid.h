@@ -213,9 +213,6 @@ private:
     float screenOffsetY = 0.0F;
     std::vector<ScreenRegion> screenRegions;
 
-    // The size of a GL core's framebuffer: its largest frame (max(base, max) geometry).
-    unsigned hwFramebufferWidth = 0;
-    unsigned hwFramebufferHeight = 0;
     std::atomic<float> geometryWidth { 0.0F };
     std::atomic<float> geometryHeight { 0.0F };
     std::atomic<float> geometryAspect { 0.0F };
