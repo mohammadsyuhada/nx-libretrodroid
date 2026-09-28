@@ -145,6 +145,22 @@ void onVideoRefresh(const void* data, unsigned width, unsigned height, unsigned 
     }
     NXGL_LOG(ANDROID_LOG_INFO, "5s: hw=%d dupe=%d sw=%d size=%ux%u fbo=%u pixel(centre/quarter)=%s audio=%ld peak=%d",
              hwFrames, dupeFrames, swFrames, width, height, framebuffer, pixel, audioFrames.load(), audioPeak.load());
+    if (data == RETRO_HW_FRAME_BUFFER_VALID) {
+        // The GL state the core hands back: the frontend's presentation pass draws on top of it.
+        GLint vao = 0, arrayBuffer = 0, program = 0, drawFbo = 0, unpack = 0;
+        GLboolean mask[4] = {1, 1, 1, 1};
+        glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &vao);
+        glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &arrayBuffer);
+        glGetIntegerv(GL_CURRENT_PROGRAM, &program);
+        glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &drawFbo);
+        glGetIntegerv(GL_PIXEL_UNPACK_BUFFER_BINDING, &unpack);
+        glGetBooleanv(GL_COLOR_WRITEMASK, mask);
+        NXGL_LOG(ANDROID_LOG_INFO, "core GL state: vao=%d arrayBuffer=%d unpack=%d program=%d drawFbo=%d scissor=%d stencil=%d "
+                 "blend=%d cull=%d depth=%d colorMask=%d%d%d%d",
+                 vao, arrayBuffer, unpack, program, drawFbo, glIsEnabled(GL_SCISSOR_TEST), glIsEnabled(GL_STENCIL_TEST),
+                 glIsEnabled(GL_BLEND), glIsEnabled(GL_CULL_FACE), glIsEnabled(GL_DEPTH_TEST),
+                 mask[0], mask[1], mask[2], mask[3]);
+    }
     hwFrames = dupeFrames = swFrames = 0;
     audioFrames = 0;
     audioPeak = 0;

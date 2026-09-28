@@ -108,6 +108,7 @@ public:
     void updatePresetRenderer();
 
 private:
+    void drawFrame(bool force);
     void updateProgram();
 
     float getScreenDensity();
