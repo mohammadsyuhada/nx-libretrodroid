@@ -480,9 +480,9 @@ float Video::getTextureStorageHeight() {
 }
 
 std::array<float, 12> Video::frameCoordinates(const std::array<float, 12>& coordinates) {
-    // A GL core draws its frame into the bottom-left width x height texels of a framebuffer sized to its largest
-    // frame (libretro's max_width x max_height), so sampling the whole texture would show the frame shrunk into a
-    // corner. Both origins agree: texel row 0 is the frame's first row in memory either way.
+    // A GL core draws its frame into the bottom-left width x height texels of a framebuffer sized to the largest
+    // frame it has delivered (at least its base geometry, clamped to the GPU limit; not libretro's max_width x
+    // max_height), so sampling the whole texture would show the frame shrunk into a corner. Both origins agree: texel row 0 is the frame's first row in memory either way.
     float storageW = getTextureStorageWidth();
     float storageH = getTextureStorageHeight();
     float scaleX = storageW > 0.0F ? std::min(1.0F, getTextureWidth() / storageW) : 1.0F;
