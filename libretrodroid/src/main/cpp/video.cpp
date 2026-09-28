@@ -272,17 +272,17 @@ void Video::drawFrame(bool force) {
     }
 
     if (presetRenderer) {
-        auto texW = (unsigned) getTextureWidth();
-        auto texH = (unsigned) getTextureHeight();
         presetRenderer->render(
-            renderer->getTexture(), texW, texH, texW, texH,
-            videoLayout.getTextureCoordinates(), videoLayout.getForegroundVertices(), videoLayout.getFramebufferVertices(),
-            videoLayout.getScreenWidth(), videoLayout.getScreenHeight(), linearTexture, frameCount);
+            renderer->getTexture(), (unsigned) getTextureStorageWidth(), (unsigned) getTextureStorageHeight(),
+            (unsigned) getTextureWidth(), (unsigned) getTextureHeight(),
+            frameCoordinates(videoLayout.getTextureCoordinates()), videoLayout.getForegroundVertices(),
+            videoLayout.getFramebufferVertices(), videoLayout.getScreenWidth(), videoLayout.getScreenHeight(),
+            linearTexture, frameCount);
         frameCount++;
         return;
     }
 
-    drawBuiltInChain(videoLayout.getForegroundVertices(), videoLayout.getTextureCoordinates());
+    drawBuiltInChain(videoLayout.getForegroundVertices(), frameCoordinates(videoLayout.getTextureCoordinates()));
     frameCount++;
 }
 
@@ -300,8 +300,8 @@ void Video::renderRegions() {
             auto frameW = (unsigned) std::lround(quad.srcWidth * (float) texW);
             auto frameH = (unsigned) std::lround(quad.srcHeight * (float) texH);
             presetRenderer->render(
-                renderer->getTexture(), texW, texH, frameW, frameH,
-                quad.coordinates, quad.vertices, videoLayout.getFramebufferVertices(),
+                renderer->getTexture(), (unsigned) getTextureStorageWidth(), (unsigned) getTextureStorageHeight(),
+                frameW, frameH, frameCoordinates(quad.coordinates), quad.vertices, videoLayout.getFramebufferVertices(),
                 videoLayout.getScreenWidth(), videoLayout.getScreenHeight(), linearTexture, frameCount);
         } else {
             // Built-in shaders: single-pass ones (the app only uses SHADER_DEFAULT) draw each region exactly; the
@@ -315,7 +315,7 @@ void Video::renderRegions() {
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
             glBindTexture(GL_TEXTURE_2D, 0);
-            drawBuiltInChain(quad.vertices, quad.coordinates);
+            drawBuiltInChain(quad.vertices, frameCoordinates(quad.coordinates));
         }
     }
     GLint filter = linearTexture ? GL_LINEAR : GL_NEAREST;
@@ -360,7 +360,7 @@ void Video::drawBuiltInChain(const std::array<float, 12>& vertices, const std::a
             glUniform1i(shader.gPreviousPassTextureHandle, 1);
         }
 
-        glUniform2f(shader.gTextureSizeHandle, getTextureWidth(), getTextureHeight());
+        glUniform2f(shader.gTextureSizeHandle, getTextureStorageWidth(), getTextureStorageHeight());
 
         glUniform1f(shader.gScreenDensityHandle, getScreenDensity());
 
@@ -393,7 +393,8 @@ void Video::drawPlain(const RegionQuad& quad) {
 
     glVertexAttribPointer(s.gvPositionHandle, 2, GL_FLOAT, GL_FALSE, 0, quad.vertices.data());
     glEnableVertexAttribArray(s.gvPositionHandle);
-    glVertexAttribPointer(s.gvCoordinateHandle, 2, GL_FLOAT, GL_FALSE, 0, quad.coordinates.data());
+    auto coordinates = frameCoordinates(quad.coordinates);
+    glVertexAttribPointer(s.gvCoordinateHandle, 2, GL_FLOAT, GL_FALSE, 0, coordinates.data());
     glEnableVertexAttribArray(s.gvCoordinateHandle);
 
     // The unshaded (inset) screen samples nearest, or linearly when it is downscaled; the sharpness the other regions
@@ -405,7 +406,7 @@ void Video::drawPlain(const RegionQuad& quad) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, plainFilter);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, plainFilter);
     glUniform1i(s.gTextureHandle, 0);
-    glUniform2f(s.gTextureSizeHandle, getTextureWidth(), getTextureHeight());
+    glUniform2f(s.gTextureSizeHandle, getTextureStorageWidth(), getTextureStorageHeight());
     glUniform1f(s.gScreenDensityHandle, getScreenDensity());
 
     // A translucent region (the inset) is blended over what the regions before it drew. Only the blend state is
@@ -469,6 +470,31 @@ float Video::getTextureHeight() {
     return renderer->lastFrameSize.second;
 }
 
+float Video::getTextureStorageWidth() {
+    return renderer->getTextureSize().first;
+}
+
+float Video::getTextureStorageHeight() {
+    return renderer->getTextureSize().second;
+}
+
+std::array<float, 12> Video::frameCoordinates(const std::array<float, 12>& coordinates) {
+    // A GL core draws its frame into the bottom-left width x height texels of a framebuffer sized to its largest
+    // frame (libretro's max_width x max_height), so sampling the whole texture would show the frame shrunk into a
+    // corner. Both origins agree: texel row 0 is the frame's first row in memory either way.
+    float storageW = getTextureStorageWidth();
+    float storageH = getTextureStorageHeight();
+    float scaleX = storageW > 0.0F ? std::min(1.0F, getTextureWidth() / storageW) : 1.0F;
+    float scaleY = storageH > 0.0F ? std::min(1.0F, getTextureHeight() / storageH) : 1.0F;
+    if (scaleX <= 0.0F || scaleY <= 0.0F) return coordinates;  // no frame yet
+    std::array<float, 12> result = coordinates;
+    for (size_t i = 0; i < result.size(); i += 2) {
+        result[i] *= scaleX;
+        result[i + 1] *= scaleY;
+    }
+    return result;
+}
+
 void Video::onNewFrame(const void *data, unsigned width, unsigned height, size_t pitch) {
     if (data != nullptr) {
         renderer->onNewFrame(data, width, height, pitch);
@@ -488,9 +514,9 @@ void Video::updateViewportAlignment(unsigned int viewportAlignment) {
     videoLayout.updateViewportAlignment(viewportAlignment);
 }
 
-void Video::updateRendererSize(unsigned int width, unsigned int height) {
-    LOGD("Updating renderer size: %d x %d", width, height);
-    renderer->updateRenderedResolution(width, height);
+void Video::updateRendererSize(unsigned int width, unsigned int height, unsigned int textureWidth, unsigned int textureHeight) {
+    LOGD("Updating renderer size: %d x %d (texture %d x %d)", width, height, textureWidth, textureHeight);
+    renderer->updateRenderedResolution(textureWidth, textureHeight);
     videoLayout.updateContentSize(width, height);
 }
 

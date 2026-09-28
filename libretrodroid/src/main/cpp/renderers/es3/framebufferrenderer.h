@@ -45,6 +45,7 @@ public:
 
     void setShaders(ShaderManager::Chain shaders) override;
     PassData getPassData(unsigned int layer) override;
+    std::pair<int, int> getTextureSize() override;
 
 private:
     bool depth = false;

@@ -45,6 +45,9 @@ public:
     virtual bool rendersInVideoCallback() = 0;
     virtual void setShaders(ShaderManager::Chain shaders) = 0;
     virtual PassData getPassData(unsigned int layer) = 0;
+    // The texture's size in texels. A GL core's framebuffer is sized to its maximum frame, and a frame (lastFrameSize)
+    // fills only its bottom-left corner; a software frame's texture is the frame's size.
+    virtual std::pair<int, int> getTextureSize() { return lastFrameSize; }
 
     virtual ~Renderer() = default;
 

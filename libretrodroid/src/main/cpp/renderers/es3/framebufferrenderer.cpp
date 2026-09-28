@@ -106,6 +106,10 @@ void FramebufferRenderer::setShaders(ShaderManager::Chain shaders) {
     }
 }
 
+std::pair<int, int> FramebufferRenderer::getTextureSize() {
+    return { (int) framebuffer->width, (int) framebuffer->height };
+}
+
 Renderer::PassData FramebufferRenderer::getPassData(unsigned int layer) {
     PassData result;
 

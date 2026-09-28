@@ -75,7 +75,9 @@ public:
     void updateScreenSize(unsigned screenWidth, unsigned screenHeight);
     void updateViewportSize(Rect viewportRect);
     void updateViewportAlignment(unsigned int viewportAlignment);
-    void updateRendererSize(unsigned width, unsigned height);
+    // width x height is the core's base geometry (the layout's content size); a GL core's framebuffer is
+    // textureWidth x textureHeight, its largest frame.
+    void updateRendererSize(unsigned width, unsigned height, unsigned textureWidth, unsigned textureHeight);
     void updateRotation(float rotation);
     void updateShaderType(ShaderManager::Config shaderConfig);
     void updateScaleMode(unsigned int scaleMode);
@@ -112,8 +114,14 @@ private:
     void updateProgram();
 
     float getScreenDensity();
+    // The last frame's size: the part of the texture the core drew.
     float getTextureWidth();
     float getTextureHeight();
+    // The texture's own size in texels (larger than the frame for a GL core rendering a smaller frame).
+    float getTextureStorageWidth();
+    float getTextureStorageHeight();
+    // coordinates (0..1 of the frame) mapped onto the frame's corner of the texture.
+    std::array<float, 12> frameCoordinates(const std::array<float, 12>& coordinates);
 
     void initializeRenderer(RenderingOptions renderingOptions);
 
