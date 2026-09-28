@@ -68,7 +68,7 @@ public:
      * no game): the host enables achievements before the view, and so the native session, exists.
      */
     void resetSession(bool keepEnabled);
-    bool memoryRegionsReady() const { return regions.ready(); }
+    bool memoryRegionsReady() const { return regions.ready(); }   // public for the host tests
 
     /** Either change invalidates the region table; readMemory rebuilds it lazily from the current inputs. */
     void setMemoryMap(const struct retro_memory_map* map);

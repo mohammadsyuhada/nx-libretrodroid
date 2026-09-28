@@ -293,6 +293,9 @@ void LibretroDroid::create(
     Environment::getInstance().initialize(systemDir, savesDir, &callback_get_current_framebuffer);
     // A failed load never reaches destroy(); releaseCore() above deinitialised its core, drop its VFS files too.
     VFS::getInstance().deinitialize();
+    // Again after releaseCore(): the old core may have set a memory map from retro_unload_game/retro_deinit, and a new
+    // core that never sets one would otherwise build its region table from those stale descriptors.
+    Achievements::getInstance().setMemoryMap(nullptr);
     Environment::getInstance().setLanguage(language);
     Environment::getInstance().setEnableVirtualFileSystem(enableVirtualFileSystem);
     Environment::getInstance().setEnableMicrophone(enableMicrophone);
